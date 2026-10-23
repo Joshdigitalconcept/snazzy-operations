@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "rootFolder": "Deliverables",
+  "autoCycleFolder": true,
+  "namingConvention": "department_username_[index]",
+  "useDepartmentCode": false,
+  "cloudName": "ho0rjsyi",
+  "apiKey": "988431174297845",
+  "apiSecret": "yMLqH9UDbz9SJRPNTLTSgPlxwlg",
+  "uploadPreset": "ml_default",
+  "connected": true,
+  "lastSyncedAt": "2026-10-15T09:06:06.617Z"
+}

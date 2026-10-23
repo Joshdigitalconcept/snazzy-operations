@@ -1,0 +1,191 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile in the workspace",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 128 },
+        "role": { "type": "string", "enum": ["admin", "business_ops", "member"] },
+        "departmentIds": { "type": "array" },
+        "avatarUrl": { "type": "string", "maxLength": 1024 },
+        "registrationStatus": { "type": "string", "enum": ["approved", "pending", "rejected"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "email", "role"]
+    },
+    "Department": {
+      "title": "Department",
+      "description": "Department within the organization",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "maxLength": 128 },
+        "code": { "type": "string", "maxLength": 32 },
+        "description": { "type": "string", "maxLength": 512 },
+        "teamLeadIds": { "type": "array" },
+        "archived": { "type": "boolean" }
+      },
+      "required": ["id", "name", "code"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "Task record in the project board",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string", "maxLength": 256 },
+        "description": { "type": "string", "maxLength": 2048 },
+        "departmentId": { "type": "string" },
+        "departmentName": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "ownerName": { "type": "string" },
+        "priority": { "type": "string", "enum": ["Low", "Medium", "High", "Critical"] },
+        "status": { "type": "string", "enum": ["Not Started", "In Progress", "Blocked", "Completed", "Pending Approval", "Approved", "Needs Revision"] },
+        "weekId": { "type": "string" },
+        "objective": { "type": "string", "maxLength": 1024 },
+        "startDate": { "type": "string" },
+        "deadline": { "type": "string" },
+        "progressPercent": { "type": "number" },
+        "challengeCategory": { "type": "string" },
+        "challengeDescription": { "type": "string" },
+        "supportNeeded": { "type": "array" },
+        "deliverables": { "type": "array" },
+        "watchers": { "type": "array" },
+        "archived": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "title", "departmentId", "ownerId", "status", "weekId"]
+    },
+    "WeeklyReflection": {
+      "title": "WeeklyReflection",
+      "description": "Friday reflections submitted by team members",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "weekId": { "type": "string" },
+        "accomplishments": { "type": "string", "maxLength": 2048 },
+        "carryovers": { "type": "string", "maxLength": 2048 },
+        "blockers": { "type": "string", "maxLength": 2048 },
+        "submittedAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "weekId", "accomplishments"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "In-app notifications",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string", "maxLength": 256 },
+        "message": { "type": "string", "maxLength": 1024 },
+        "type": { "type": "string" },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "linkTaskId": { "type": "string" }
+      },
+      "required": ["id", "userId", "title", "message"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "System operational audit trail",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "actorId": { "type": "string" },
+        "actorName": { "type": "string" },
+        "action": { "type": "string" },
+        "details": { "type": "string" },
+        "category": { "type": "string" }
+      },
+      "required": ["id", "timestamp", "actorId", "action"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "Task discussions and comments",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "taskId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userAvatar": { "type": "string" },
+        "content": { "type": "string", "maxLength": 2048 },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "taskId", "userId", "content"]
+    },
+    "Setting": {
+      "title": "Setting",
+      "description": "System settings and integrations configuration",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "enabled": { "type": "boolean" },
+        "rootFolder": { "type": "string" },
+        "autoCycleFolder": { "type": "boolean" },
+        "namingConvention": { "type": "string" },
+        "useDepartmentCode": { "type": "boolean" },
+        "zohoDomain": { "type": "string" },
+        "parentFolderId": { "type": "string" },
+        "workspaceId": { "type": "string" },
+        "parentFolderUrl": { "type": "string" },
+        "teamFolderName": { "type": "string" },
+        "teamFolderId": { "type": "string" },
+        "clientId": { "type": "string" },
+        "clientSecret": { "type": "string" },
+        "refreshToken": { "type": "string" },
+        "redirectUri": { "type": "string" },
+        "cloudName": { "type": "string" },
+        "apiKey": { "type": "string" },
+        "apiSecret": { "type": "string" },
+        "uploadPreset": { "type": "string" },
+        "connected": { "type": "boolean" },
+        "lastSyncedAt": { "type": "string" }
+      },
+      "required": ["id"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profile collection"
+    },
+    "/departments/{deptId}": {
+      "schema": { "$ref": "#/entities/Department" },
+      "description": "Organization departments"
+    },
+    "/tasks/{taskId}": {
+      "schema": { "$ref": "#/entities/Task" },
+      "description": "Operational tasks"
+    },
+    "/reflections/{reflectionId}": {
+      "schema": { "$ref": "#/entities/WeeklyReflection" },
+      "description": "Friday weekly reflections"
+    },
+    "/notifications/{notifId}": {
+      "schema": { "$ref": "#/entities/Notification" },
+      "description": "User notifications"
+    },
+    "/auditLogs/{logId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Audit trail logs"
+    },
+    "/comments/{commentId}": {
+      "schema": { "$ref": "#/entities/Comment" },
+      "description": "Task comments"
+    },
+    "/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/Setting" },
+      "description": "Application settings and integration configurations"
+    }
+  }
+}

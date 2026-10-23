@@ -1,0 +1,6 @@
+{
+  "name": "Snazzy Operations",
+  "description": "Internal operations platform for Snazzy Operations driving transparency, accountability, task management, and departmental health.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

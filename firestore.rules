@@ -1,0 +1,94 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        (request.auth.token.email != null && request.auth.token.email.lower() == 'fasinujoshua0@gmail.com') ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
+    }
+
+    function isTeamLead(deptId) {
+      return isSignedIn() &&
+        deptId != null &&
+        exists(/databases/$(database)/documents/departments/$(deptId)) &&
+        request.auth.uid in get(/databases/$(database)/documents/departments/$(deptId)).data.teamLeadIds;
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if isAdmin();
+    }
+
+    // Departments Collection
+    match /departments/{deptId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn();
+    }
+
+    // Tasks Collection
+    match /tasks/{taskId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        request.auth.uid == resource.data.ownerId ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['watchers']) ||
+        (isTeamLead(resource.data.departmentId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'progressPercent', 'approvalNote', 'approvedBy', 'approvedByName', 'approvalDate', 'revisionReason']))
+      );
+      allow delete: if isSignedIn() && (isAdmin() || request.auth.uid == resource.data.ownerId);
+    }
+
+    // Weekly Reflections Collection
+    match /reflections/{reflectionId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn();
+    }
+
+    // Notifications Collection
+    match /notifications/{notifId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn();
+    }
+
+    // Audit Logs Collection
+    match /auditLogs/{logId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn();
+      allow delete: if isAdmin();
+    }
+
+    // Bug Reports Collection
+    match /bugReports/{bugId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn();
+    }
+
+    // Weeks Collection
+    match /weeks/{weekId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn();
+    }
+
+    // Comments Collection
+    match /comments/{commentId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn();
+    }
+
+    // System Settings Collection (WorkDrive config, app preferences)
+    match /settings/{settingId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+  }
+}
