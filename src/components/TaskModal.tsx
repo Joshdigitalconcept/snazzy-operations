@@ -1385,7 +1385,9 @@ export const TaskModal: React.FC<TaskModalProps> = ({ taskId, onClose }) => {
                                 const validDocUrl = resolveWorkDriveOpenUrl(
                                   documentUrl,
                                   del.workdrive?.publicId,
-                                  del.workdrive?.formattedFileName || del.name
+                                  del.workdrive?.formattedFileName || del.name,
+                                  del.workdrive?.resourceType,
+                                  del.workdrive?.format
                                 );
 
                                 return (

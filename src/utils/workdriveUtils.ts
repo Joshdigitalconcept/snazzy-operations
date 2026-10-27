@@ -192,6 +192,8 @@ export function resolveWorkDriveOpenUrl(
   rawUrl?: string,
   publicId?: string,
   fileName?: string,
+  resourceType?: string,
+  format?: string,
   _parentFolderId = '',
   _workspaceId = '',
   _zohoDomain = 'zoho.com'
@@ -217,6 +219,12 @@ export function resolveWorkDriveOpenUrl(
     }
     if (fileName && fileName.trim()) {
       params.set('fileName', fileName.trim());
+    }
+    if (resourceType && resourceType.trim()) {
+      params.set('resourceType', resourceType.trim());
+    }
+    if (format && format.trim()) {
+      params.set('format', format.trim());
     }
     return `/api/cloudinary/view-file?${params.toString()}`;
   }

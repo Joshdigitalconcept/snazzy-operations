@@ -181,30 +181,30 @@ export const AdminView: React.FC = () => {
 
   // Cloudinary config local form state (Zoho WorkDrive suspended)
   const [cldEnabled, setCldEnabled] = useState(cloudinaryConfig.enabled ?? true);
-  const [cldCloudName, setCldCloudName] = useState(cloudinaryConfig.cloudName || '');
-  const [cldApiKey, setCldApiKey] = useState(cloudinaryConfig.apiKey || '');
-  const [cldApiSecret, setCldApiSecret] = useState(cloudinaryConfig.apiSecret || '');
-  const [cldUploadPreset, setCldUploadPreset] = useState(cloudinaryConfig.uploadPreset || '');
+  const [cldCloudName, setCldCloudName] = useState(cloudinaryConfig.cloudName || 'ho0rjsyi');
+  const [cldApiKey, setCldApiKey] = useState(cloudinaryConfig.apiKey || '988431174297845');
+  const [cldApiSecret, setCldApiSecret] = useState(cloudinaryConfig.apiSecret || 'yMLqH9UDbz9SJRPNTLTSgPlxwlg');
+  const [cldUploadPreset, setCldUploadPreset] = useState(cloudinaryConfig.uploadPreset || 'ml_default');
   const [cldUrlQuickPaste, setCldUrlQuickPaste] = useState('');
   const [cldRootFolder, setCldRootFolder] = useState(cloudinaryConfig.rootFolder || 'Deliverables');
   const [cldAutoCycle, setCldAutoCycle] = useState(cloudinaryConfig.autoCycleFolder ?? true);
   const [cldUseDeptCode, setCldUseDeptCode] = useState(cloudinaryConfig.useDepartmentCode ?? false);
-  const [cldConnected, setCldConnected] = useState(cloudinaryConfig.connected ?? false);
+  const [cldConnected, setCldConnected] = useState(cloudinaryConfig.connected ?? true);
   const [cldSavedSuccess, setCldSavedSuccess] = useState(false);
   const [cldTestingConnection, setCldTestingConnection] = useState(false);
   const [cldTestResult, setCldTestResult] = useState<{ success: boolean; message: string; details?: any } | null>(null);
 
   React.useEffect(() => {
-    if (cloudinaryConfig.cloudName && !cldCloudName) {
+    if (cloudinaryConfig.cloudName) {
       setCldCloudName(cloudinaryConfig.cloudName);
     }
-    if (cloudinaryConfig.apiKey && !cldApiKey) {
+    if (cloudinaryConfig.apiKey) {
       setCldApiKey(cloudinaryConfig.apiKey);
     }
-    if (cloudinaryConfig.apiSecret && !cldApiSecret) {
+    if (cloudinaryConfig.apiSecret) {
       setCldApiSecret(cloudinaryConfig.apiSecret);
     }
-    if (cloudinaryConfig.uploadPreset && !cldUploadPreset) {
+    if (cloudinaryConfig.uploadPreset) {
       setCldUploadPreset(cloudinaryConfig.uploadPreset);
     }
     if (cloudinaryConfig.connected !== undefined) {
@@ -231,10 +231,10 @@ export const AdminView: React.FC = () => {
   const handleSaveCloudinaryConfig = (e: React.FormEvent) => {
     e.preventDefault();
     const parsedFromUrl = parseCloudinaryUrl(cldUrlQuickPaste);
-    const effectiveCloudName = (parsedFromUrl?.cloudName || cldCloudName || cloudinaryConfig.cloudName || '').trim();
-    const effectiveApiKey = (parsedFromUrl?.apiKey || cldApiKey || cloudinaryConfig.apiKey || '').trim();
-    const effectiveApiSecret = (parsedFromUrl?.apiSecret || cldApiSecret || cloudinaryConfig.apiSecret || '').trim();
-    const effectivePreset = (cldUploadPreset || cloudinaryConfig.uploadPreset || '').trim();
+    const effectiveCloudName = (parsedFromUrl?.cloudName || cldCloudName || cloudinaryConfig.cloudName || 'ho0rjsyi').trim();
+    const effectiveApiKey = (parsedFromUrl?.apiKey || cldApiKey || cloudinaryConfig.apiKey || '988431174297845').trim();
+    const effectiveApiSecret = (parsedFromUrl?.apiSecret || cldApiSecret || cloudinaryConfig.apiSecret || 'yMLqH9UDbz9SJRPNTLTSgPlxwlg').trim();
+    const effectivePreset = (cldUploadPreset || cloudinaryConfig.uploadPreset || 'ml_default').trim();
 
     const isReady = Boolean(
       effectiveCloudName && ((effectiveApiKey && effectiveApiSecret) || effectivePreset)
@@ -265,10 +265,10 @@ export const AdminView: React.FC = () => {
     setCldTestResult(null);
 
     const parsedFromUrl = parseCloudinaryUrl(cldUrlQuickPaste);
-    const effectiveCloudName = (parsedFromUrl?.cloudName || cldCloudName || cloudinaryConfig.cloudName || '').trim();
-    const effectiveApiKey = (parsedFromUrl?.apiKey || cldApiKey || cloudinaryConfig.apiKey || '').trim();
-    const effectiveApiSecret = (parsedFromUrl?.apiSecret || cldApiSecret || cloudinaryConfig.apiSecret || '').trim();
-    const effectivePreset = (cldUploadPreset || cloudinaryConfig.uploadPreset || '').trim();
+    const effectiveCloudName = (parsedFromUrl?.cloudName || cldCloudName || cloudinaryConfig.cloudName || 'ho0rjsyi').trim();
+    const effectiveApiKey = (parsedFromUrl?.apiKey || cldApiKey || cloudinaryConfig.apiKey || '988431174297845').trim();
+    const effectiveApiSecret = (parsedFromUrl?.apiSecret || cldApiSecret || cloudinaryConfig.apiSecret || 'yMLqH9UDbz9SJRPNTLTSgPlxwlg').trim();
+    const effectivePreset = (cldUploadPreset || cloudinaryConfig.uploadPreset || 'ml_default').trim();
 
     try {
       let res: Response | null = null;

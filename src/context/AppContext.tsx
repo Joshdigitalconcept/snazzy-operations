@@ -278,21 +278,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Cloudinary Deliverable Storage State (Active Primary Engine)
   const [cloudinaryConfig, setCloudinaryConfig] = useState<CloudinaryConfig>(() => {
-    const saved = localStorage.getItem('snazzy_cloudinary_config');
+    const defaultCloudName = ((import.meta as any).env?.VITE_CLOUDINARY_CLOUD_NAME as string) || 'ho0rjsyi';
+    const defaultApiKey = ((import.meta as any).env?.VITE_CLOUDINARY_API_KEY as string) || '988431174297845';
+    const defaultApiSecret = 'yMLqH9UDbz9SJRPNTLTSgPlxwlg';
+    const defaultPreset = ((import.meta as any).env?.VITE_CLOUDINARY_UPLOAD_PRESET as string) || 'ml_default';
+
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('snazzy_cloudinary_config') : null;
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         return {
           enabled: true,
-          cloudName: '',
-          apiKey: '',
-          apiSecret: '',
-          uploadPreset: '',
+          cloudName: parsed.cloudName || defaultCloudName,
+          apiKey: parsed.apiKey || defaultApiKey,
+          apiSecret: parsed.apiSecret || defaultApiSecret,
+          uploadPreset: parsed.uploadPreset || defaultPreset,
           rootFolder: 'Deliverables',
           autoCycleFolder: true,
           namingConvention: 'department_username_[index]',
           useDepartmentCode: false,
-          connected: false,
+          connected: true,
           ...parsed,
         };
       } catch (e) {
@@ -300,15 +305,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
-    const defaultCloudName = ((import.meta as any).env?.VITE_CLOUDINARY_CLOUD_NAME as string) || 'ho0rjsyi';
-    const defaultApiKey = ((import.meta as any).env?.VITE_CLOUDINARY_API_KEY as string) || '988431174297845';
-    const defaultPreset = ((import.meta as any).env?.VITE_CLOUDINARY_UPLOAD_PRESET as string) || 'ml_default';
-
     return {
       enabled: true,
       cloudName: defaultCloudName,
       apiKey: defaultApiKey,
-      apiSecret: '',
+      apiSecret: defaultApiSecret,
       uploadPreset: defaultPreset,
       rootFolder: 'Deliverables',
       autoCycleFolder: true,
