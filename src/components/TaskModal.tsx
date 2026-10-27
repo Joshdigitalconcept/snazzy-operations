@@ -321,6 +321,69 @@ export const TaskModal: React.FC<TaskModalProps> = ({ taskId, onClose }) => {
               }
             }
           }
+
+          // Fallback: If server signature was unavailable, sign directly in browser if API key & secret are in client config
+          if (!directUploadSucceeded && cloudinaryConfig.cloudName && cloudinaryConfig.apiKey && cloudinaryConfig.apiSecret) {
+            try {
+              const timestamp = Math.floor(Date.now() / 1000);
+              const overwrite = 'true';
+              const paramsToSign: string[] = [];
+              if (targetFolder) paramsToSign.push(`folder=${targetFolder}`);
+              paramsToSign.push(`overwrite=${overwrite}`);
+              if (publicId) paramsToSign.push(`public_id=${publicId}`);
+              paramsToSign.push(`timestamp=${timestamp}`);
+              const stringToSign = paramsToSign.join('&') + cloudinaryConfig.apiSecret.trim();
+
+              const encoder = new TextEncoder();
+              const hashBuffer = await window.crypto.subtle.digest('SHA-1', encoder.encode(stringToSign));
+              const hashArray = Array.from(new Uint8Array(hashBuffer));
+              const clientSig = hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+
+              const clientDirectForm = new FormData();
+              clientDirectForm.append('file', selectedFile, rawFileName);
+              clientDirectForm.append('folder', targetFolder);
+              clientDirectForm.append('public_id', publicId);
+              clientDirectForm.append('overwrite', overwrite);
+              clientDirectForm.append('timestamp', String(timestamp));
+              clientDirectForm.append('api_key', cloudinaryConfig.apiKey.trim());
+              clientDirectForm.append('signature', clientSig);
+
+              const uploadEndpoint = `https://api.cloudinary.com/v1_1/${encodeURIComponent(cloudinaryConfig.cloudName.trim())}/auto/upload`;
+              const clientRes = await fetch(uploadEndpoint, {
+                method: 'POST',
+                body: clientDirectForm,
+              });
+
+              const clientText = await clientRes.text();
+              let clientData: any = null;
+              try {
+                clientData = JSON.parse(clientText);
+              } catch {
+                // Ignore parse error
+              }
+
+              if (clientRes.ok && clientData && (clientData.secure_url || clientData.url)) {
+                directUploadSucceeded = true;
+                uploadSuccess = true;
+                finalUrl = clientData.secure_url || clientData.url;
+                finalWorkdriveMeta.provider = 'cloudinary';
+                finalWorkdriveMeta.workdriveUrl = finalUrl;
+                finalWorkdriveMeta.documentUrl = finalUrl;
+                finalWorkdriveMeta.fileId = clientData.asset_id || clientData.public_id;
+                finalWorkdriveMeta.publicId = clientData.public_id;
+                finalWorkdriveMeta.resourceType = clientData.resource_type;
+                finalWorkdriveMeta.format = clientData.format || ext;
+                finalWorkdriveMeta.bytes = clientData.bytes || selectedFile.size;
+                finalWorkdriveMeta.cycleFolder = targetCycle;
+                finalWorkdriveMeta.folderPath = targetFolder;
+                finalWorkdriveMeta.status = 'synced';
+                finalWorkdriveMeta.syncedAt = new Date().toISOString();
+                setUploadProgress(100);
+              }
+            } catch (clientSignErr) {
+              console.warn('Direct browser signature upload notice:', clientSignErr);
+            }
+          }
         } catch (directErr) {
           console.warn('Direct Cloudinary upload notice, trying server proxy fallback:', directErr);
         }
@@ -361,9 +424,14 @@ export const TaskModal: React.FC<TaskModalProps> = ({ taskId, onClose }) => {
           try {
             uploadData = JSON.parse(rawText);
           } catch {
+            const isHtml =
+              rawText.toLowerCase().includes('<!doctype') ||
+              rawText.toLowerCase().includes('<html') ||
+              rawText.toLowerCase().includes('<body') ||
+              rawText.includes('FUNCTION_INVOCATION_FAILED');
             throw new Error(
-              rawText.toLowerCase().includes('<!doctype')
-                ? 'Server is warming up. Please try uploading again in a few moments.'
+              isHtml
+                ? 'Cloudinary server returned an HTML error. Verify Vercel environment variables (CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET).'
                 : 'Server returned an invalid format.'
             );
           }

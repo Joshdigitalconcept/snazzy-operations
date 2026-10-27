@@ -299,17 +299,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // fallback to default
       }
     }
+
+    const defaultCloudName = ((import.meta as any).env?.VITE_CLOUDINARY_CLOUD_NAME as string) || 'ho0rjsyi';
+    const defaultApiKey = ((import.meta as any).env?.VITE_CLOUDINARY_API_KEY as string) || '988431174297845';
+    const defaultPreset = ((import.meta as any).env?.VITE_CLOUDINARY_UPLOAD_PRESET as string) || 'ml_default';
+
     return {
       enabled: true,
-      cloudName: '',
-      apiKey: '',
+      cloudName: defaultCloudName,
+      apiKey: defaultApiKey,
       apiSecret: '',
-      uploadPreset: '',
+      uploadPreset: defaultPreset,
       rootFolder: 'Deliverables',
       autoCycleFolder: true,
       namingConvention: 'department_username_[index]',
       useDepartmentCode: false,
-      connected: false,
+      connected: true,
       lastSyncedAt: new Date().toISOString(),
     };
   });

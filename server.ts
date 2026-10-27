@@ -22,7 +22,7 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import multer from 'multer';
-import { createServer as createViteServer } from 'vite';
+
 
 // Asynchronously load Cloudinary SDK on demand after environment variable sanitization
 async function getCloudinary(): Promise<any> {
@@ -39,8 +39,20 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  res.header('X-Robots-Tag', 'noindex, nofollow, noarchive, nosnippet');
   if (req.method === 'OPTIONS') {
     return res.sendStatus(204);
+  }
+  next();
+});
+
+// Normalize API routes if Vercel serverless environment stripped the /api prefix
+app.use((req: Request, _res: Response, next: NextFunction) => {
+  if (
+    req.url &&
+    (req.url.startsWith('/cloudinary') || req.url.startsWith('/workdrive') || req.url.startsWith('/health'))
+  ) {
+    req.url = '/api' + req.url;
   }
   next();
 });
@@ -1441,6 +1453,12 @@ app.post('/api/cloudinary/upload', (req: Request, res: Response, next: NextFunct
   }
 });
 
+// Explicit robots.txt route blocking all web scrapers and crawlers
+app.get('/robots.txt', (_req, res) => {
+  res.type('text/plain');
+  res.send('User-agent: *\nDisallow: /\n');
+});
+
 // Health check endpoint
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', server: 'Snazzy Operations API' });
@@ -1469,13 +1487,14 @@ app.all('/api/*', (req: Request, res: Response) => {
 
 // Setup Vite development middleware or static production serving
 async function startServer() {
-  if (process.env.NODE_ENV !== 'production') {
+  if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
-  } else {
+  } else if (!process.env.VERCEL) {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (_req, res) => {
@@ -1488,4 +1507,10 @@ async function startServer() {
   });
 }
 
-startServer();
+// In local and Cloud Run environments, start the Express server.
+// In Vercel serverless environments, Vercel imports and wraps `app`.
+if (!process.env.VERCEL) {
+  startServer();
+}
+
+export default app;

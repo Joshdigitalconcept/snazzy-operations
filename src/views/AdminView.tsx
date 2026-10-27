@@ -302,9 +302,14 @@ export const AdminView: React.FC = () => {
       try {
         data = JSON.parse(rawText);
       } catch {
+        const isHtml =
+          rawText.toLowerCase().includes('<!doctype') ||
+          rawText.toLowerCase().includes('<html') ||
+          rawText.toLowerCase().includes('<body') ||
+          rawText.includes('FUNCTION_INVOCATION_FAILED');
         throw new Error(
-          rawText.toLowerCase().includes('<!doctype')
-            ? 'The backend server is starting up or reloading. Please try testing again in a few moments.'
+          isHtml
+            ? 'The server returned an HTML error page instead of JSON. Ensure Vercel environment variables are configured and the serverless function is deployed.'
             : 'Server returned an invalid response format.'
         );
       }
