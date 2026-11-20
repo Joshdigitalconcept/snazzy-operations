@@ -11,7 +11,6 @@ import {
   Building2,
   CheckCircle2,
   AlertCircle,
-  Shield,
   Check,
   ArrowLeft,
   ChevronDown,
@@ -24,6 +23,7 @@ export const AuthView: React.FC = () => {
     signup,
     forgotPassword,
     departments,
+    departmentsLoading,
   } = useApp();
 
   const [authMode, setAuthMode] = useState<'login' | 'signup' | 'forgot'>('login');
@@ -155,12 +155,6 @@ export const AuthView: React.FC = () => {
 
         {/* Main Card */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-100 dark:border-slate-800 overflow-hidden">
-          {/* Admin Account Notice */}
-          <div className="bg-blue-50 dark:bg-blue-950/60 border-b border-blue-100 dark:border-blue-900/50 px-4 py-2.5 flex items-center gap-2 text-xs text-[#005CBD] dark:text-blue-300 font-semibold">
-            <Shield className="w-4 h-4 shrink-0 text-[#005CBD] dark:text-blue-400" />
-            <span>Default Admin: <strong>fasinujoshua0@gmail.com</strong></span>
-          </div>
-
           <div className="p-6 sm:p-7 space-y-5">
             {/* Card Header Title based on authMode */}
             <div className="space-y-1">
@@ -380,25 +374,38 @@ export const AuthView: React.FC = () => {
 
                 <div>
                   <label htmlFor="signup-dept-select" className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Department *
+                    Department {availableDepartments.length > 0 ? '*' : ''}
                   </label>
                   <div className="relative">
                     <Building2 className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                     <select
                       id="signup-dept-select"
-                      required
-                      value={selectedDept}
+                      required={availableDepartments.length > 0}
+                      value={activeSelectedDept}
                       onChange={(e) => setSelectedDept(e.target.value)}
                       className="w-full pl-9 pr-9 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-[#005CBD] focus:bg-white dark:focus:bg-slate-800 text-slate-900 dark:text-white transition-all font-medium appearance-none cursor-pointer text-xs"
                     >
-                      {availableDepartments.map((dept) => (
-                        <option key={dept.id} value={dept.id}>
-                          {dept.name}
+                      {availableDepartments.length === 0 ? (
+                        <option value="">
+                          {departmentsLoading
+                            ? 'Loading departments...'
+                            : 'Default Department (Assigned by Admin)'}
                         </option>
-                      ))}
+                      ) : (
+                        availableDepartments.map((dept) => (
+                          <option key={dept.id} value={dept.id}>
+                            {dept.name}
+                          </option>
+                        ))
+                      )}
                     </select>
                     <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                   </div>
+                  {!departmentsLoading && availableDepartments.length === 0 && (
+                    <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
+                      Departments could not be loaded before sign-in. Ensure Firestore rules allow public read on <code className="font-mono">/departments</code>, or sign in as Admin once to sync the department directory.
+                    </p>
+                  )}
                 </div>
 
                 <button

@@ -121,6 +121,7 @@ interface AppContextType {
 
   // Domain Entities
   departments: Department[];
+  departmentsLoading: boolean;
   tasks: Task[];
   notifications: Notification[];
   reflections: WeeklyReflection[];
@@ -214,7 +215,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [users, setUsers] = useState<User[]>([]);
-  const [departments, setDepartments] = useState<Department[]>([]);
+  const [departments, setDepartments] = useState<Department[]>(() => {
+    try {
+      const cached = localStorage.getItem('snazzy_departments_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {
+      // ignore invalid cache
+    }
+    return [];
+  });
+  const [departmentsLoading, setDepartmentsLoading] = useState<boolean>(true);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [reflections, setReflections] = useState<WeeklyReflection[]>([]);
@@ -466,44 +479,104 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => unsubscribe();
   }, []);
 
-  // 2. Realtime listeners for Firestore - all collections are fetched live from Firestore
+  // 1b. Realtime listener for Departments (runs both pre-auth for Sign Up and post-auth)
   useEffect(() => {
-    if (!isAuthenticated || !currentUser?.id) return;
-
+    let active = true;
     const pathDepts = 'departments';
-    const unsubDepts = onSnapshot(collection(db, pathDepts), async (snapshot) => {
-      if (snapshot.empty) {
-        setDepartments([]);
-        return;
-      }
-      const list = snapshot.docs.map((d) => {
-        const data = d.data();
-        const deptName = (data.name || '').trim();
-        const isCommunity = deptName.toLowerCase() === 'community';
-        const normalizedCode = isCommunity ? 'Community' : data.code;
-        const rawLeads: string[] = Array.isArray(data.teamLeadIds) ? data.teamLeadIds : [];
-        const cleanedLeads = rawLeads.filter((id) => !SEEDED_USER_IDS.includes(id));
 
-        if ((isCommunity && data.code !== 'Community') || cleanedLeads.length !== rawLeads.length) {
-          setDoc(
-            doc(db, 'departments', d.id),
-            {
-              ...(isCommunity ? { code: 'Community' } : {}),
-              teamLeadIds: cleanedLeads,
-            },
-            { merge: true }
-          ).catch(() => {});
+    // Immediately hydrate from server public cache if local state is empty
+    fetch('/api/departments')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((res) => {
+        if (!active) return;
+        if (res?.success && Array.isArray(res.departments) && res.departments.length > 0) {
+          setDepartments((prev) => (prev.length > 0 ? prev : res.departments));
+        }
+      })
+      .catch(() => {});
+
+    const unsubDepts = onSnapshot(
+      collection(db, pathDepts),
+      (snapshot) => {
+        if (!active) return;
+        setDepartmentsLoading(false);
+        if (snapshot.empty) {
+          setDepartments([]);
+          try {
+            localStorage.removeItem('snazzy_departments_cache');
+          } catch {
+            // ignore
+          }
+          return;
+        }
+        const list = snapshot.docs.map((d) => {
+          const data = d.data();
+          const deptName = (data.name || '').trim();
+          const isCommunity = deptName.toLowerCase() === 'community';
+          const normalizedCode = isCommunity ? 'Community' : data.code;
+          const rawLeads: string[] = Array.isArray(data.teamLeadIds) ? data.teamLeadIds : [];
+          const cleanedLeads = rawLeads.filter((id) => !SEEDED_USER_IDS.includes(id));
+
+          if (auth.currentUser && ((isCommunity && data.code !== 'Community') || cleanedLeads.length !== rawLeads.length)) {
+            setDoc(
+              doc(db, 'departments', d.id),
+              {
+                ...(isCommunity ? { code: 'Community' } : {}),
+                teamLeadIds: cleanedLeads,
+              },
+              { merge: true }
+            ).catch(() => {});
+          }
+
+          return {
+            ...data,
+            id: d.id,
+            code: normalizedCode,
+            teamLeadIds: cleanedLeads,
+          } as Department;
+        });
+
+        setDepartments(list);
+        try {
+          localStorage.setItem('snazzy_departments_cache', JSON.stringify(list));
+        } catch {
+          // ignore quota error
         }
 
-        return {
-          ...data,
-          id: d.id,
-          code: normalizedCode,
-          teamLeadIds: cleanedLeads,
-        } as Department;
-      });
-      setDepartments(list);
-    }, (err) => handleFirestoreError(err, OperationType.GET, pathDepts));
+        if (auth.currentUser && list.length > 0) {
+          fetch('/api/departments', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              departments: list.map((d) => ({
+                id: d.id,
+                name: d.name,
+                code: d.code,
+                archived: Boolean(d.archived),
+              })),
+            }),
+          }).catch(() => {});
+        }
+      },
+      (err) => {
+        if (!active) return;
+        setDepartmentsLoading(false);
+        // Only log full permission error when authenticated; pre-auth may fall back to /api/departments
+        if (auth.currentUser) {
+          handleFirestoreError(err, OperationType.GET, pathDepts);
+        }
+      }
+    );
+
+    return () => {
+      active = false;
+      unsubDepts();
+    };
+  }, [isAuthenticated, currentUser?.id]);
+
+  // 2. Realtime listeners for Firestore - authenticated operational collections
+  useEffect(() => {
+    if (!isAuthenticated || !currentUser?.id) return;
 
     const pathUsers = 'users';
     const unsubUsers = onSnapshot(collection(db, pathUsers), (snapshot) => {
@@ -744,7 +817,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
 
     return () => {
-      unsubDepts();
       unsubUsers();
       unsubTasks();
       unsubReflections();
@@ -2194,6 +2266,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         archiveWeek,
         unarchiveWeek,
         departments,
+        departmentsLoading,
         tasks,
         notifications,
         reflections,

@@ -50,7 +50,10 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 app.use((req: Request, _res: Response, next: NextFunction) => {
   if (
     req.url &&
-    (req.url.startsWith('/cloudinary') || req.url.startsWith('/workdrive') || req.url.startsWith('/health'))
+    (req.url.startsWith('/cloudinary') ||
+      req.url.startsWith('/workdrive') ||
+      req.url.startsWith('/departments') ||
+      req.url.startsWith('/health'))
   ) {
     req.url = '/api' + req.url;
   }
@@ -1464,6 +1467,54 @@ app.post('/api/cloudinary/upload', (req: Request, res: Response, next: NextFunct
       success: false,
       error: error.message || 'An error occurred while uploading to Cloudinary.',
     });
+  }
+});
+
+// Persistent public department directory cache (synced from authenticated Firestore sessions)
+const DEPTS_CACHE_FILE = path.join(process.cwd(), '.departments-cache.json');
+let cachedDepartments: Array<{ id: string; name: string; code: string; archived?: boolean }> = (() => {
+  try {
+    if (fs.existsSync(DEPTS_CACHE_FILE)) {
+      const parsed = JSON.parse(fs.readFileSync(DEPTS_CACHE_FILE, 'utf-8'));
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch {
+    // ignore read error
+  }
+  return [];
+})();
+
+app.get('/api/departments', (_req: Request, res: Response) => {
+  return res.json({
+    success: true,
+    departments: cachedDepartments.filter((d) => !d.archived),
+  });
+});
+
+app.post('/api/departments', (req: Request, res: Response) => {
+  try {
+    const incomingList = Array.isArray(req.body?.departments) ? req.body.departments : [];
+    const sanitized = incomingList
+      .filter((d: any) => d && typeof d.id === 'string' && typeof d.name === 'string')
+      .map((d: any) => ({
+        id: String(d.id).trim(),
+        name: String(d.name).trim(),
+        code: typeof d.code === 'string' ? d.code.trim() : '',
+        archived: Boolean(d.archived),
+      }))
+      .slice(0, 100);
+
+    if (sanitized.length > 0) {
+      cachedDepartments = sanitized;
+      try {
+        fs.writeFileSync(DEPTS_CACHE_FILE, JSON.stringify(sanitized, null, 2), 'utf-8');
+      } catch {
+        // ignore ephemeral FS error on serverless
+      }
+    }
+    return res.json({ success: true, count: cachedDepartments.length });
+  } catch (err: any) {
+    return res.status(400).json({ success: false, error: err?.message || 'Invalid departments payload.' });
   }
 });
 
