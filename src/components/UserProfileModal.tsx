@@ -18,6 +18,7 @@ import {
   RotateCcw,
   Plus,
   Search,
+  Link2,
 } from 'lucide-react';
 
 interface UserProfileModalProps {
@@ -57,6 +58,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose }) =
   const [firstName, setFirstName] = useState(initialFirst);
   const [lastName, setLastName] = useState(initialLast);
   const [avatarUrl, setAvatarUrl] = useState(currentUser?.avatarUrl || AVATAR_PRESETS[0]);
+  const [avatarLoadError, setAvatarLoadError] = useState(false);
   const [selectedDeptId, setSelectedDeptId] = useState<string>(
     (currentUser?.departmentIds || []).length > 0 ? currentUser.departmentIds[0] : (departments[0]?.id || 'dept-biz')
   );
@@ -77,12 +79,37 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose }) =
     setSelectedDeptId(deptId);
   };
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleAvatarChange = (nextUrl: string) => {
+    setAvatarUrl(nextUrl);
+    setAvatarLoadError(false);
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setProfileMsg(null);
     if (!firstName.trim()) {
       setProfileMsg({ type: 'error', text: 'First Name is required.' });
       return;
+    }
+
+    const trimmedAvatarUrl = avatarUrl.trim();
+    let finalAvatarUrl = AVATAR_PRESETS[0];
+    if (trimmedAvatarUrl) {
+      if (trimmedAvatarUrl.length > 1024) {
+        setProfileMsg({ type: 'error', text: 'Profile image link must be 1,024 characters or fewer.' });
+        return;
+      }
+      try {
+        const parsed = new URL(trimmedAvatarUrl);
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+          setProfileMsg({ type: 'error', text: 'Profile image link must start with https:// or http://.' });
+          return;
+        }
+        finalAvatarUrl = trimmedAvatarUrl;
+      } catch {
+        setProfileMsg({ type: 'error', text: 'Please enter a valid image URL (e.g. https://example.com/photo.jpg).' });
+        return;
+      }
     }
 
     const combinedName = `${firstName.trim()} ${lastName.trim()}`.trim();
@@ -91,7 +118,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose }) =
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       name: combinedName,
-      avatarUrl,
+      avatarUrl: finalAvatarUrl,
     };
 
     // Only update department if user is admin
@@ -99,7 +126,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose }) =
       profileUpdates.departmentIds = [selectedDeptId];
     }
 
-    updateProfile(profileUpdates);
+    await updateProfile(profileUpdates);
+    setAvatarUrl(finalAvatarUrl);
 
     setProfileMsg({ type: 'success', text: 'Profile changes saved successfully!' });
     setTimeout(() => setProfileMsg(null), 3000);
@@ -140,11 +168,18 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose }) =
         <div className="bg-gradient-to-r from-[#001C42] to-[#00224D] text-white p-6 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <div className="relative">
-              <img
-                src={avatarUrl}
-                alt={currentUser?.name || 'User'}
-                className="w-14 h-14 rounded-full object-cover ring-4 ring-white/20 shadow-md"
-              />
+              {avatarUrl.trim() && !avatarLoadError ? (
+                <img
+                  src={avatarUrl.trim()}
+                  alt={currentUser?.name || 'User'}
+                  onError={() => setAvatarLoadError(true)}
+                  className="w-14 h-14 rounded-full object-cover ring-4 ring-white/20 shadow-md bg-slate-800"
+                />
+              ) : (
+                <div className="w-14 h-14 rounded-full ring-4 ring-white/20 shadow-md bg-white/10 flex items-center justify-center">
+                  <UserIcon className="w-7 h-7 text-slate-200" />
+                </div>
+              )}
               {(leadDepts || []).length > 0 && (
                 <div className="absolute -bottom-1 -right-1 bg-amber-500 text-slate-950 p-1 rounded-full shadow-xs" title="Team Lead">
                   <Crown className="w-3.5 h-3.5 fill-slate-950" />
@@ -289,23 +324,69 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({ onClose }) =
                 />
               </div>
 
-              {/* Avatar Preset Gallery */}
-              <div>
-                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-2">Profile Avatar Picture</label>
-                <div className="flex items-center gap-3 overflow-x-auto pb-2">
+              {/* Avatar Preset Gallery & Custom Image URL */}
+              <div className="space-y-3">
+                <label className="block font-bold text-slate-700 dark:text-slate-300">Profile Avatar Picture</label>
+                <div className="flex items-center gap-3 overflow-x-auto pb-1">
                   {AVATAR_PRESETS.map((url, idx) => (
                     <img
                       key={idx}
                       src={url}
                       alt="Avatar preset"
-                      onClick={() => setAvatarUrl(url)}
-                      className={`w-12 h-12 rounded-full object-cover cursor-pointer transition-all border-2 ${
-                        avatarUrl === url
+                      onClick={() => handleAvatarChange(url)}
+                      className={`w-12 h-12 rounded-full object-cover cursor-pointer transition-all border-2 shrink-0 ${
+                        avatarUrl.trim() === url
                           ? 'border-[#005CBD] scale-110 shadow-md ring-2 ring-blue-200 dark:ring-blue-800'
                           : 'border-transparent opacity-70 hover:opacity-100'
                       }`}
                     />
                   ))}
+                </div>
+
+                <div>
+                  <label htmlFor="profile-avatar-url-input" className="block font-semibold text-slate-600 dark:text-slate-400 mb-1 text-[11px]">
+                    Or paste a custom image link
+                  </label>
+                  <div className="flex items-center gap-2.5">
+                    <div className="relative flex-1">
+                      <Link2 className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        id="profile-avatar-url-input"
+                        type="url"
+                        maxLength={1024}
+                        placeholder="https://example.com/your-photo.jpg"
+                        value={avatarUrl}
+                        onChange={(e) => handleAvatarChange(e.target.value)}
+                        className="w-full pl-9 pr-14 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-[#005CBD] text-slate-900 dark:text-white font-medium text-xs"
+                      />
+                      {avatarUrl && (
+                        <button
+                          type="button"
+                          onClick={() => handleAvatarChange('')}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                    <div className="w-9 h-9 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 overflow-hidden flex items-center justify-center shrink-0">
+                      {avatarUrl.trim() && !avatarLoadError ? (
+                        <img
+                          src={avatarUrl.trim()}
+                          alt="Custom avatar preview"
+                          onError={() => setAvatarLoadError(true)}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <UserIcon className="w-4 h-4 text-slate-400" />
+                      )}
+                    </div>
+                  </div>
+                  {avatarLoadError && avatarUrl.trim() && (
+                    <p className="mt-1 text-[11px] text-amber-600 dark:text-amber-400">
+                      Could not load a preview from this URL. Make sure it points directly to a public image file.
+                    </p>
+                  )}
                 </div>
               </div>
 

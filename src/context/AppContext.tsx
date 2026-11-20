@@ -950,15 +950,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateProfile = async (updates: Partial<User>) => {
     if (!currentUser?.id) return;
-    const updated = { ...currentUser, ...updates };
-    setCurrentUser(updated);
+    const sanitizedUpdates: Partial<User> = { ...updates };
+    if (typeof sanitizedUpdates.avatarUrl === 'string') {
+      sanitizedUpdates.avatarUrl = sanitizedUpdates.avatarUrl.trim().slice(0, 1024);
+    }
 
-    if (auth.currentUser && updates.name) {
-      await updateAuthProfile(auth.currentUser, { displayName: updates.name }).catch(() => {});
+    const updated = { ...currentUser, ...sanitizedUpdates };
+    setCurrentUser(updated);
+    setUsers((prev) => prev.map((u) => (u.id === currentUser.id ? { ...u, ...sanitizedUpdates } : u)));
+
+    if (auth.currentUser && (sanitizedUpdates.name || sanitizedUpdates.avatarUrl)) {
+      await updateAuthProfile(auth.currentUser, {
+        ...(sanitizedUpdates.name ? { displayName: sanitizedUpdates.name } : {}),
+        ...(sanitizedUpdates.avatarUrl ? { photoURL: sanitizedUpdates.avatarUrl } : {}),
+      }).catch(() => {});
     }
 
     try {
-      await setDoc(doc(db, 'users', currentUser.id), cleanForFirestore(updates), { merge: true });
+      await setDoc(doc(db, 'users', currentUser.id), cleanForFirestore(sanitizedUpdates), { merge: true });
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `users/${currentUser.id}`);
     }
