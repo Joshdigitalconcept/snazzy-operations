@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { SnazzyLogo } from '../components/SnazzyLogo';
 import {
@@ -27,6 +27,35 @@ export const AuthView: React.FC = () => {
   } = useApp();
 
   const [authMode, setAuthMode] = useState<'login' | 'signup' | 'forgot'>('login');
+  const authPopRef = useRef(false);
+  const authInitRef = useRef(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onPopState = (event: PopStateEvent) => {
+      const state = event.state as { __snazzyAuth?: boolean; authMode?: 'login' | 'signup' | 'forgot' } | null;
+      if (state?.__snazzyAuth && state.authMode) {
+        authPopRef.current = true;
+        setAuthMode(state.authMode);
+      }
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!authInitRef.current) {
+      authInitRef.current = true;
+      window.history.replaceState({ __snazzyAuth: true, authMode }, '');
+      return;
+    }
+    if (authPopRef.current) {
+      authPopRef.current = false;
+      return;
+    }
+    window.history.pushState({ __snazzyAuth: true, authMode }, '');
+  }, [authMode]);
 
   // Login form state
   const [loginEmail, setLoginEmail] = useState('');

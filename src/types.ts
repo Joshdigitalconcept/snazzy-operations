@@ -324,3 +324,33 @@ export interface SavedFilterPreset {
 }
 
 export type ThemeMode = 'light' | 'dark' | 'system';
+
+export type AnnouncementCategory = 'feature' | 'fix' | 'improvement' | 'notice';
+
+export interface AnnouncementSeenReceipt {
+  userId: string;
+  userName: string;
+  seenAt: string;
+  revision: number;
+}
+
+export interface SiteAnnouncement {
+  id: string;
+  docType?: 'site_announcement';
+  title: string;
+  summary: string;
+  highlights: string[];
+  category: AnnouncementCategory;
+  enabled: boolean;
+  revision: number;
+  createdBy: string;
+  createdByName: string;
+  createdAt: string;
+  updatedAt: string;
+  activatedAt?: string;
+  actionLabel?: string;
+  actionView?: 'dashboard' | 'tasks' | 'past_tasks' | 'department_health' | 'reports' | 'reflections' | 'admin';
+  seenBy?: Record<string, AnnouncementSeenReceipt>;
+}
+
+

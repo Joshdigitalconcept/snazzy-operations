@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { User, UserRole, RegistrationStatus } from '../types';
+import { User, UserRole, RegistrationStatus, SiteAnnouncement, AnnouncementCategory } from '../types';
 import { parseCloudinaryUrl } from '../utils/workdriveUtils';
 import {
   Shield,
@@ -33,6 +33,9 @@ import {
   CheckCircle,
   AlertCircle,
   Sparkles,
+  Megaphone,
+  Eye,
+  BellRing,
 } from 'lucide-react';
 
 export const AdminView: React.FC = () => {
@@ -60,6 +63,16 @@ export const AdminView: React.FC = () => {
     restoreTask,
     cloudinaryConfig,
     updateCloudinaryConfig,
+    adminTab,
+    setAdminTab,
+    openMemberProfile,
+    announcements,
+    createAnnouncement,
+    updateAnnouncement,
+    toggleAnnouncement,
+    deleteAnnouncement,
+    republishAnnouncement,
+    setPreviewAnnouncement,
   } = useApp();
 
   const safeUsers = users || [];
@@ -67,8 +80,6 @@ export const AdminView: React.FC = () => {
   const safeTasks = tasks || [];
   const safeBugs = bugReports || [];
   const safeLogs = auditLogs || [];
-
-  const [adminTab, setAdminTab] = useState<'registrations' | 'users' | 'departments' | 'cloudinary' | 'audit' | 'bugs' | 'restore'>('registrations');
 
   // User management state
   const [userSearchQuery, setUserSearchQuery] = useState('');
@@ -178,6 +189,84 @@ export const AdminView: React.FC = () => {
   };
 
   const archivedTasks = safeTasks.filter((t) => t.archived);
+
+  // Site Dialogs / Announcements management state
+  const safeAnnouncements = announcements || [];
+  const activeDialogsCount = safeAnnouncements.filter((a) => a.enabled).length;
+  const [showDialogModal, setShowDialogModal] = useState(false);
+  const [editingDialog, setEditingDialog] = useState<SiteAnnouncement | null>(null);
+  const [dialogTitle, setDialogTitle] = useState('');
+  const [dialogSummary, setDialogSummary] = useState('');
+  const [dialogHighlightsText, setDialogHighlightsText] = useState('');
+  const [dialogCategory, setDialogCategory] = useState<AnnouncementCategory>('feature');
+  const [dialogEnabled, setDialogEnabled] = useState(true);
+  const [dialogActionView, setDialogActionView] = useState<string>('');
+  const [dialogActionLabel, setDialogActionLabel] = useState('');
+  const [dialogSaving, setDialogSaving] = useState(false);
+  const [trackingDialogId, setTrackingDialogId] = useState<string | null>(null);
+  const [trackingFilter, setTrackingFilter] = useState<'seen' | 'unseen' | 'all'>('seen');
+  const [trackingSearch, setTrackingSearch] = useState('');
+
+  const openCreateDialogModal = () => {
+    setEditingDialog(null);
+    setDialogTitle('');
+    setDialogSummary('');
+    setDialogHighlightsText('');
+    setDialogCategory('feature');
+    setDialogEnabled(true);
+    setDialogActionView('');
+    setDialogActionLabel('');
+    setShowDialogModal(true);
+  };
+
+  const openEditDialogModal = (item: SiteAnnouncement) => {
+    setEditingDialog(item);
+    setDialogTitle(item.title);
+    setDialogSummary(item.summary);
+    setDialogHighlightsText((item.highlights || []).join('\n'));
+    setDialogCategory(item.category || 'feature');
+    setDialogEnabled(Boolean(item.enabled));
+    setDialogActionView(item.actionView || '');
+    setDialogActionLabel(item.actionLabel || '');
+    setShowDialogModal(true);
+  };
+
+  const handleSaveDialogForm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!dialogTitle.trim() || !dialogSummary.trim()) return;
+    setDialogSaving(true);
+    const parsedHighlights = dialogHighlightsText
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    try {
+      if (editingDialog) {
+        await updateAnnouncement(editingDialog.id, {
+          title: dialogTitle.trim(),
+          summary: dialogSummary.trim(),
+          highlights: parsedHighlights,
+          category: dialogCategory,
+          enabled: dialogEnabled,
+          actionView: (dialogActionView || undefined) as SiteAnnouncement['actionView'],
+          actionLabel: dialogActionView ? dialogActionLabel.trim() || undefined : undefined,
+        });
+      } else {
+        await createAnnouncement({
+          title: dialogTitle.trim(),
+          summary: dialogSummary.trim(),
+          highlights: parsedHighlights,
+          category: dialogCategory,
+          enabled: dialogEnabled,
+          actionView: (dialogActionView || undefined) as SiteAnnouncement['actionView'],
+          actionLabel: dialogActionView ? dialogActionLabel.trim() || undefined : undefined,
+        });
+      }
+      setShowDialogModal(false);
+    } finally {
+      setDialogSaving(false);
+    }
+  };
 
   // Cloudinary config local form state (Zoho WorkDrive suspended)
   const [cldEnabled, setCldEnabled] = useState(cloudinaryConfig.enabled ?? true);
@@ -422,6 +511,21 @@ export const AdminView: React.FC = () => {
         </button>
 
         <button
+          onClick={() => setAdminTab('announcements')}
+          className={`py-3 border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${
+            adminTab === 'announcements' ? 'border-[#005CBD] text-[#005CBD] dark:text-blue-400' : 'border-transparent hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          <Megaphone className="w-4 h-4" />
+          <span>Site Dialogs</span>
+          {activeDialogsCount > 0 && (
+            <span className="bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold px-1.5 py-0.2 rounded-full tabular-nums">
+              {activeDialogsCount} On
+            </span>
+          )}
+        </button>
+
+        <button
           onClick={() => setAdminTab('audit')}
           className={`py-3 border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap ${
             adminTab === 'audit' ? 'border-[#005CBD] text-[#005CBD] dark:text-blue-400' : 'border-transparent hover:text-slate-800 dark:hover:text-slate-200'
@@ -522,7 +626,7 @@ export const AdminView: React.FC = () => {
                   <select
                     value={userStatusFilter}
                     onChange={(e) => setUserStatusFilter(e.target.value as any)}
-                    className="bg-transparent font-bold text-slate-800 dark:text-white focus:outline-none cursor-pointer"
+                    className="bg-slate-50 dark:bg-slate-800 font-bold text-slate-800 dark:text-white rounded-lg px-1.5 py-0.5 focus:outline-none cursor-pointer"
                   >
                     <option value="all" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">All Statuses</option>
                     <option value="approved" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Approved</option>
@@ -536,7 +640,7 @@ export const AdminView: React.FC = () => {
                   <select
                     value={userRoleFilter}
                     onChange={(e) => setUserRoleFilter(e.target.value as any)}
-                    className="bg-transparent font-bold text-slate-800 dark:text-white focus:outline-none cursor-pointer"
+                    className="bg-slate-50 dark:bg-slate-800 font-bold text-slate-800 dark:text-white rounded-lg px-1.5 py-0.5 focus:outline-none cursor-pointer"
                   >
                     <option value="all" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">All Roles</option>
                     <option value="team_member" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Team Member</option>
@@ -550,7 +654,7 @@ export const AdminView: React.FC = () => {
                   <select
                     value={userDeptFilter}
                     onChange={(e) => setUserDeptFilter(e.target.value)}
-                    className="bg-transparent font-bold text-slate-800 dark:text-white focus:outline-none cursor-pointer"
+                    className="bg-slate-50 dark:bg-slate-800 font-bold text-slate-800 dark:text-white rounded-lg px-1.5 py-0.5 focus:outline-none cursor-pointer"
                   >
                     <option value="all" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">All Departments</option>
                     {departments.map((d) => (
@@ -603,20 +707,27 @@ export const AdminView: React.FC = () => {
                       return (
                         <tr key={u.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
                           <td className="p-4">
-                            <div className="flex items-center gap-2.5">
+                            <button
+                              type="button"
+                              onClick={() => openMemberProfile(u.id)}
+                              className="flex items-center gap-2.5 text-left group transition-colors"
+                              title={`View ${u.name}'s profile`}
+                            >
                               <img
                                 src={
                                   u.avatarUrl ||
                                   'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
                                 }
                                 alt={u.name}
-                                className="w-8 h-8 rounded-full object-cover ring-1 ring-slate-200 dark:ring-slate-700"
+                                className="w-8 h-8 rounded-full object-cover ring-1 ring-slate-200 dark:ring-slate-700 group-hover:ring-[#005CBD]"
                               />
                               <div>
-                                <div className="font-bold text-slate-900 dark:text-white">{u.name}</div>
+                                <div className="font-bold text-slate-900 dark:text-white group-hover:text-[#005CBD] dark:group-hover:text-blue-400 group-hover:underline">
+                                  {u.name}
+                                </div>
                                 <div className="text-[11px] text-slate-500 dark:text-slate-400">{u.email}</div>
                               </div>
-                            </div>
+                            </button>
                           </td>
 
                           <td className="p-4 font-medium text-slate-700 dark:text-slate-300">{u.title}</td>
@@ -896,15 +1007,22 @@ export const AdminView: React.FC = () => {
                               key={m.id}
                               className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2 py-1 rounded-xl flex items-center gap-1.5 text-xs font-medium text-slate-700 dark:text-slate-300"
                             >
-                              <img
-                                src={
-                                  m.avatarUrl ||
-                                  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
-                                }
-                                alt={m.name}
-                                className="w-4 h-4 rounded-full object-cover shrink-0"
-                              />
-                              <span className="truncate max-w-[100px]">{m.name}</span>
+                              <button
+                                type="button"
+                                onClick={() => openMemberProfile(m.id)}
+                                className="flex items-center gap-1.5 hover:text-[#005CBD] dark:hover:text-blue-400 transition-colors"
+                                title={`View ${m.name}'s profile`}
+                              >
+                                <img
+                                  src={
+                                    m.avatarUrl ||
+                                    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+                                  }
+                                  alt={m.name}
+                                  className="w-4 h-4 rounded-full object-cover shrink-0"
+                                />
+                                <span className="truncate max-w-[100px] hover:underline">{m.name}</span>
+                              </button>
                               <button
                                 onClick={() => removeMemberFromDepartment(dept.id, m.id)}
                                 className="text-slate-400 dark:text-slate-500 hover:text-red-500 p-0.5 rounded transition-colors ml-0.5"
@@ -1257,6 +1375,223 @@ export const AdminView: React.FC = () => {
               </div>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Tab 4b: Startup Site Dialogs & Release Notes */}
+      {adminTab === 'announcements' && (
+        <div className="space-y-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                <Megaphone className="w-4 h-4 text-[#005CBD] dark:text-blue-400" />
+                <span>Startup Update Dialogs</span>
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-2xl">
+                Publish clean one-time announcement dialogs for new fixes, shipped features, or team notices. Enabled dialogs open automatically once when a member opens the site.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={openCreateDialogModal}
+              className="px-4 py-2 bg-[#005CBD] hover:bg-[#0051B8] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors shrink-0 self-start sm:self-auto"
+            >
+              <Plus className="w-4 h-4" />
+              <span>New Dialog</span>
+            </button>
+          </div>
+
+          {safeAnnouncements.length === 0 ? (
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-10 text-center space-y-2">
+              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                No startup dialogs created yet
+              </p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+                Create a dialog when you ship a fix or release a new workflow. You can turn it on or off anytime, preview it, or delete it cleanly.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {safeAnnouncements.map((item) => {
+                const categoryLabel =
+                  item.category === 'fix'
+                    ? 'Fix Shipped'
+                    : item.category === 'improvement'
+                    ? 'Improvement'
+                    : item.category === 'notice'
+                    ? 'Team Notice'
+                    : 'New Feature';
+
+                const approvedUsers = safeUsers.filter((u) => u.registrationStatus === 'approved');
+                const currentRevision = item.revision || 1;
+                const seenMap = item.seenBy || {};
+                const seenApprovedCount = approvedUsers.filter(
+                  (u) => (seenMap[u.id]?.revision ?? 0) >= currentRevision
+                ).length;
+
+                return (
+                  <div
+                    key={item.id}
+                    className={`bg-white dark:bg-slate-900 border rounded-2xl p-5 transition-all ${
+                      item.enabled
+                        ? 'border-slate-200 dark:border-slate-700 shadow-2xs'
+                        : 'border-slate-200/70 dark:border-slate-800 opacity-75'
+                    }`}
+                  >
+                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                      <div className="space-y-2 min-w-0 flex-1">
+                        <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-500 dark:text-slate-400 flex-wrap">
+                          <span className="uppercase tracking-wider text-slate-700 dark:text-slate-200">
+                            {categoryLabel}
+                          </span>
+                          <span>·</span>
+                          <span>
+                            {item.activatedAt
+                              ? `${item.enabled ? 'Turned on' : 'Last on'} ${new Date(item.activatedAt).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric',
+                                })}`
+                              : item.enabled
+                                ? `Turned on ${new Date(item.updatedAt || item.createdAt).toLocaleDateString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric',
+                                  })}`
+                                : `Draft · ${new Date(item.createdAt).toLocaleDateString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric',
+                                  })}`}
+                          </span>
+                          <span>·</span>
+                          <span className={item.enabled ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}>
+                            {item.enabled ? 'On (Visible once on visit)' : 'Off (Hidden)'}
+                          </span>
+                          <span>·</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTrackingDialogId(item.id);
+                              setTrackingFilter('seen');
+                              setTrackingSearch('');
+                            }}
+                            className="inline-flex items-center gap-1 text-[#005CBD] dark:text-blue-400 hover:underline tabular-nums"
+                            title="See which team members have viewed this dialog"
+                          >
+                            <Users className="w-3.5 h-3.5" />
+                            <span>
+                              Seen by {seenApprovedCount} / {approvedUsers.length}
+                            </span>
+                          </button>
+                        </div>
+
+                        <h4 className="font-bold text-sm text-slate-900 dark:text-white">
+                          {item.title}
+                        </h4>
+
+                        <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed line-clamp-2">
+                          {item.summary}
+                        </p>
+
+                        {Array.isArray(item.highlights) && item.highlights.length > 0 && (
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400 pt-0.5 tabular-nums">
+                            {item.highlights.length} bullet highlight{item.highlights.length === 1 ? '' : 's'}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Controls: On/Off Switch + Actions */}
+                      <div className="flex items-center gap-2 flex-wrap shrink-0">
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={item.enabled}
+                          onClick={() => toggleAnnouncement(item.id)}
+                          className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-colors ${
+                            item.enabled
+                              ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300'
+                              : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+                          }`}
+                          title={item.enabled ? 'Turn dialog off' : 'Turn dialog on'}
+                        >
+                          <span
+                            className={`w-7 h-4 rounded-full relative transition-colors ${
+                              item.enabled ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-600'
+                            }`}
+                          >
+                            <span
+                              className={`w-3 h-3 rounded-full bg-white absolute top-0.5 transition-transform ${
+                                item.enabled ? 'translate-x-3.5' : 'translate-x-0.5'
+                              }`}
+                            />
+                          </span>
+                          <span>{item.enabled ? 'On' : 'Off'}</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTrackingDialogId(item.id);
+                            setTrackingFilter('seen');
+                            setTrackingSearch('');
+                          }}
+                          className="px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-1 transition-colors tabular-nums"
+                          title="Inspect who has seen this dialog"
+                        >
+                          <Users className="w-3.5 h-3.5 text-[#005CBD] dark:text-blue-400" />
+                          <span>Viewers ({seenApprovedCount})</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setPreviewAnnouncement(item)}
+                          className="px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-1 transition-colors"
+                          title="Preview dialog appearance"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>Preview</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => republishAnnouncement(item.id)}
+                          className="px-2.5 py-1.5 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-1 transition-colors"
+                          title="Reset seen state and show once again to all team members"
+                        >
+                          <BellRing className="w-3.5 h-3.5" />
+                          <span>Re-show</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => openEditDialogModal(item)}
+                          className="p-1.5 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-600 dark:text-slate-300 hover:text-[#005CBD] dark:hover:text-blue-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                          title="Edit dialog"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (confirm(`Delete dialog "${item.title}" permanently?`)) {
+                              deleteAnnouncement(item.id);
+                            }
+                          }}
+                          className="p-1.5 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+                          title="Delete dialog"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -1626,6 +1961,457 @@ export const AdminView: React.FC = () => {
           </div>
         </div>
       )}
+      {/* Create / Edit Site Dialog Modal */}
+      {showDialogModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-lg p-6 space-y-4 text-xs max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h3 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
+                <Megaphone className="w-4 h-4 text-[#005CBD] dark:text-blue-400" />
+                <span>{editingDialog ? 'Edit Startup Dialog' : 'Create Startup Dialog'}</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowDialogModal(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveDialogForm} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Update Type
+                  </label>
+                  <select
+                    value={dialogCategory}
+                    onChange={(e) => setDialogCategory(e.target.value as AnnouncementCategory)}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#005CBD]"
+                  >
+                    <option value="feature" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">New Feature</option>
+                    <option value="fix" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Fix Shipped</option>
+                    <option value="improvement" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Improvement</option>
+                    <option value="notice" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Team Notice</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Status
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setDialogEnabled((prev) => !prev)}
+                    className={`w-full p-2.5 rounded-xl border font-semibold flex items-center justify-between transition-colors ${
+                      dialogEnabled
+                        ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300'
+                        : 'bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    <span>{dialogEnabled ? 'On (Shows once on site open)' : 'Off (Saved without showing)'}</span>
+                    <span
+                      className={`w-7 h-4 rounded-full relative transition-colors ${
+                        dialogEnabled ? 'bg-emerald-600' : 'bg-slate-300 dark:bg-slate-600'
+                      }`}
+                    >
+                      <span
+                        className={`w-3 h-3 rounded-full bg-white absolute top-0.5 transition-transform ${
+                          dialogEnabled ? 'translate-x-3.5' : 'translate-x-0.5'
+                        }`}
+                      />
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Headline
+                </label>
+                <input
+                  type="text"
+                  required
+                  maxLength={160}
+                  placeholder="e.g. Task assignment & member profiles now live"
+                  value={dialogTitle}
+                  onChange={(e) => setDialogTitle(e.target.value)}
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#005CBD]"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Message
+                </label>
+                <textarea
+                  rows={3}
+                  required
+                  maxLength={2000}
+                  placeholder="Describe what was fixed or added cleanly..."
+                  value={dialogSummary}
+                  onChange={(e) => setDialogSummary(e.target.value)}
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#005CBD]"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Key Highlights <span className="font-normal text-slate-400">(optional — one point per line)</span>
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder={"Click any teammate's name to view their profile\nDark mode dropdown contrast fixed across all filters"}
+                  value={dialogHighlightsText}
+                  onChange={(e) => setDialogHighlightsText(e.target.value)}
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#005CBD]"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Shortcut Section <span className="font-normal text-slate-400">(optional)</span>
+                  </label>
+                  <select
+                    value={dialogActionView}
+                    onChange={(e) => setDialogActionView(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#005CBD]"
+                  >
+                    <option value="" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">None</option>
+                    <option value="dashboard" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Dashboard</option>
+                    <option value="tasks" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Active Tasks</option>
+                    <option value="department_health" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Department Health</option>
+                    <option value="reports" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Reports</option>
+                    <option value="reflections" className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">Weekly Reflections</option>
+                  </select>
+                </div>
+
+                {dialogActionView && (
+                  <div>
+                    <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      Shortcut Button Text
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={48}
+                      placeholder="e.g. Open Tasks"
+                      value={dialogActionLabel}
+                      onChange={(e) => setDialogActionLabel(e.target.value)}
+                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl font-semibold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#005CBD]"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!dialogTitle.trim() && !dialogSummary.trim()) return;
+                    const nowIso = new Date().toISOString();
+                    setPreviewAnnouncement({
+                      id: editingDialog?.id || 'preview',
+                      title: dialogTitle.trim() || 'Untitled Update',
+                      summary: dialogSummary.trim() || 'Update details...',
+                      highlights: dialogHighlightsText
+                        .split('\n')
+                        .map((l) => l.trim())
+                        .filter(Boolean),
+                      category: dialogCategory,
+                      enabled: dialogEnabled,
+                      revision: editingDialog?.revision || 1,
+                      createdBy: editingDialog?.createdBy || currentUser.id,
+                      createdByName: editingDialog?.createdByName || currentUser.name,
+                      createdAt: editingDialog?.createdAt || nowIso,
+                      updatedAt: nowIso,
+                      activatedAt: editingDialog?.enabled
+                        ? editingDialog.activatedAt || editingDialog.updatedAt || editingDialog.createdAt
+                        : dialogEnabled
+                          ? nowIso
+                          : editingDialog?.activatedAt,
+                      actionView: (dialogActionView || undefined) as SiteAnnouncement['actionView'],
+                      actionLabel: dialogActionView ? dialogActionLabel.trim() || undefined : undefined,
+                    });
+                  }}
+                  className="px-3.5 py-2 border border-slate-300 dark:border-slate-700 rounded-xl font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 inline-flex items-center gap-1.5"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Preview</span>
+                </button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowDialogModal(false)}
+                    className="px-3.5 py-2 border border-slate-300 dark:border-slate-700 rounded-xl font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={dialogSaving}
+                    className="px-4 py-2 bg-[#005CBD] hover:bg-[#0051B8] disabled:opacity-60 text-white rounded-xl font-bold shadow-md"
+                  >
+                    {dialogSaving ? 'Saving...' : editingDialog ? 'Save Changes' : 'Create Dialog'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Dialog Viewers / Read Receipts Modal */}
+      {trackingDialogId && (() => {
+        const tracked = safeAnnouncements.find((a) => a.id === trackingDialogId);
+        if (!tracked) return null;
+
+        const currentRev = tracked.revision || 1;
+        const seenMap = tracked.seenBy || {};
+        const approvedUsers = safeUsers.filter((u) => u.registrationStatus === 'approved');
+
+        const seenMembers = approvedUsers
+          .filter((u) => (seenMap[u.id]?.revision ?? 0) >= currentRev)
+          .sort(
+            (a, b) =>
+              new Date(seenMap[b.id]?.seenAt || 0).getTime() -
+              new Date(seenMap[a.id]?.seenAt || 0).getTime()
+          );
+
+        const unseenMembers = approvedUsers
+          .filter((u) => (seenMap[u.id]?.revision ?? 0) < currentRev)
+          .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+        const seenRate =
+          approvedUsers.length > 0
+            ? Math.round((seenMembers.length / approvedUsers.length) * 100)
+            : 0;
+
+        const q = trackingSearch.trim().toLowerCase();
+        const baseList =
+          trackingFilter === 'seen'
+            ? seenMembers
+            : trackingFilter === 'unseen'
+            ? unseenMembers
+            : [...seenMembers, ...unseenMembers];
+
+        const filteredList = q
+          ? baseList.filter(
+              (u) =>
+                (u.name || '').toLowerCase().includes(q) ||
+                (u.email || '').toLowerCase().includes(q) ||
+                (u.title || '').toLowerCase().includes(q)
+            )
+          : baseList;
+
+        return (
+          <div
+            onClick={() => setTrackingDialogId(null)}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-lg max-h-[85vh] overflow-hidden flex flex-col text-xs"
+            >
+              {/* Modal Header */}
+              <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-start justify-between gap-3">
+                <div className="min-w-0 space-y-1">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                    Dialog Read Receipts{currentRev > 1 ? ` · Round ${currentRev}` : ''}
+                  </div>
+                  <h3 className="font-bold text-base text-slate-900 dark:text-white truncate">
+                    {tracked.title}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setTrackingDialogId(null)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Coverage Metrics Strip */}
+              <div className="px-6 py-3.5 bg-slate-50/80 dark:bg-slate-800/40 border-b border-slate-100 dark:border-slate-800 grid grid-cols-3 gap-3 text-center">
+                <div>
+                  <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                    {seenMembers.length}
+                  </div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                    Seen
+                  </div>
+                </div>
+                <div>
+                  <div className="text-lg font-bold text-slate-900 dark:text-white tabular-nums">
+                    {unseenMembers.length}
+                  </div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                    Not Yet Seen
+                  </div>
+                </div>
+                <div>
+                  <div className="text-lg font-bold text-[#005CBD] dark:text-blue-400 tabular-nums">
+                    {seenRate}%
+                  </div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                    Team Reach
+                  </div>
+                </div>
+              </div>
+
+              {/* Filter Tabs & Search */}
+              <div className="px-6 py-3 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl self-start">
+                  <button
+                    type="button"
+                    onClick={() => setTrackingFilter('seen')}
+                    className={`px-2.5 py-1 rounded-lg font-semibold transition-colors tabular-nums ${
+                      trackingFilter === 'seen'
+                        ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs'
+                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    Seen ({seenMembers.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTrackingFilter('unseen')}
+                    className={`px-2.5 py-1 rounded-lg font-semibold transition-colors tabular-nums ${
+                      trackingFilter === 'unseen'
+                        ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs'
+                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    Not Seen ({unseenMembers.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTrackingFilter('all')}
+                    className={`px-2.5 py-1 rounded-lg font-semibold transition-colors tabular-nums ${
+                      trackingFilter === 'all'
+                        ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-2xs'
+                        : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                    }`}
+                  >
+                    All ({approvedUsers.length})
+                  </button>
+                </div>
+
+                <div className="relative flex-1 sm:max-w-[200px]">
+                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={trackingSearch}
+                    onChange={(e) => setTrackingSearch(e.target.value)}
+                    placeholder="Filter member..."
+                    className="w-full pl-8 pr-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#005CBD]"
+                  />
+                </div>
+              </div>
+
+              {/* Member List */}
+              <div className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 px-6">
+                {filteredList.length === 0 ? (
+                  <div className="py-10 text-center text-slate-400 dark:text-slate-500">
+                    {trackingFilter === 'seen'
+                      ? 'No team members have seen this dialog yet.'
+                      : trackingFilter === 'unseen'
+                      ? 'Every approved team member has seen this dialog.'
+                      : 'No matching team members found.'}
+                  </div>
+                ) : (
+                  filteredList.map((member) => {
+                    const receipt = seenMap[member.id];
+                    const hasSeenCurrent = (receipt?.revision ?? 0) >= currentRev;
+                    const memberDepts = safeDepts
+                      .filter((d) => (member.departmentIds || []).includes(d.id))
+                      .map((d) => d.code)
+                      .join(', ');
+
+                    return (
+                      <div
+                        key={member.id}
+                        className="py-3 flex items-center justify-between gap-3"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => openMemberProfile(member.id)}
+                          className="flex items-center gap-3 min-w-0 text-left group"
+                          title={`View ${member.name}'s profile`}
+                        >
+                          <img
+                            src={
+                              member.avatarUrl ||
+                              'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+                            }
+                            alt={member.name}
+                            className="w-8 h-8 rounded-full object-cover ring-1 ring-slate-200 dark:ring-slate-700 group-hover:ring-[#005CBD] shrink-0"
+                          />
+                          <div className="min-w-0">
+                            <div className="font-semibold text-slate-900 dark:text-white group-hover:text-[#005CBD] dark:group-hover:text-blue-400 group-hover:underline truncate">
+                              {member.name}
+                            </div>
+                            <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                              {member.title || 'Team Member'}
+                              {memberDepts ? ` · ${memberDepts}` : ''}
+                            </div>
+                          </div>
+                        </button>
+
+                        <div className="text-right shrink-0">
+                          {hasSeenCurrent && receipt ? (
+                            <div>
+                              <div className="font-semibold text-emerald-700 dark:text-emerald-400 inline-flex items-center gap-1">
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>Seen</span>
+                              </div>
+                              <div className="text-[10px] text-slate-400 dark:text-slate-500 tabular-nums mt-0.5">
+                                {new Date(receipt.seenAt).toLocaleString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: 'numeric',
+                                  minute: '2-digit',
+                                })}
+                              </div>
+                            </div>
+                          ) : (
+                            <div>
+                              <div className="font-medium text-slate-400 dark:text-slate-500">
+                                Not opened yet
+                              </div>
+                              {receipt && receipt.revision < currentRev && (
+                                <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
+                                  Saw round {receipt.revision} earlier
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-3.5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/40 flex items-center justify-end">
+                <button
+                  type="button"
+                  onClick={() => setTrackingDialogId(null)}
+                  className="px-4 py-2 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 rounded-xl font-semibold transition-colors"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

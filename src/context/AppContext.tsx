@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -44,6 +44,9 @@ import {
   CloudinaryConfig,
   WorkDriveConfig,
   WorkDriveDeliverableMeta,
+  SiteAnnouncement,
+  AnnouncementCategory,
+  AnnouncementSeenReceipt,
 } from '../types';
 import { generateDefaultWeeks, getCurrentWeekId } from '../utils/weekUtils';
 import {
@@ -77,6 +80,9 @@ interface AppContextType {
   setIsAuthenticated: (val: boolean) => void;
   isUserProfileOpen: boolean;
   setIsUserProfileOpen: (open: boolean) => void;
+  viewedUserId: string | null;
+  setViewedUserId: (id: string | null) => void;
+  openMemberProfile: (userId: string) => void;
 
   // Authentication & Session
   login: (email: string, password?: string) => Promise<{ success: boolean; message?: string }>;
@@ -94,8 +100,12 @@ interface AppContextType {
   setActiveView: (view: 'dashboard' | 'tasks' | 'past_tasks' | 'department_health' | 'reports' | 'reflections' | 'admin') => void;
   activeDashboardTab: 'member' | 'team_lead' | 'biz_ops';
   setActiveDashboardTab: (tab: 'member' | 'team_lead' | 'biz_ops') => void;
+  adminTab: 'registrations' | 'users' | 'departments' | 'cloudinary' | 'announcements' | 'audit' | 'bugs' | 'restore';
+  setAdminTab: (tab: 'registrations' | 'users' | 'departments' | 'cloudinary' | 'announcements' | 'audit' | 'bugs' | 'restore') => void;
   isMobileSidebarOpen: boolean;
   setIsMobileSidebarOpen: (open: boolean) => void;
+  isGlobalSearchOpen: boolean;
+  setIsGlobalSearchOpen: (open: boolean) => void;
   selectedTaskId: string | null;
   setSelectedTaskId: (id: string | null) => void;
   selectedTaskTab: 'details' | 'deliverables' | 'comments' | 'history';
@@ -179,7 +189,28 @@ interface AppContextType {
   clearAllNotifications: () => Promise<void>;
   checkDeadlineReminders: () => number;
 
-  // Misc Actions
+  // Misc Actions & Site Announcements
+  announcements: SiteAnnouncement[];
+  activeStartupAnnouncement: SiteAnnouncement | null;
+  startupAnnouncementQueue: SiteAnnouncement[];
+  unseenAnnouncementsCount: number;
+  previewAnnouncement: SiteAnnouncement | null;
+  setPreviewAnnouncement: (announcement: SiteAnnouncement | null) => void;
+  markAnnouncementSeen: (announcementId: string) => Promise<void>;
+  dismissStartupAnnouncement: (announcementId: string) => void;
+  createAnnouncement: (data: {
+    title: string;
+    summary: string;
+    highlights?: string[];
+    category: AnnouncementCategory;
+    enabled: boolean;
+    actionLabel?: string;
+    actionView?: SiteAnnouncement['actionView'];
+  }) => Promise<SiteAnnouncement>;
+  updateAnnouncement: (id: string, updates: Partial<SiteAnnouncement>) => Promise<void>;
+  toggleAnnouncement: (id: string) => Promise<void>;
+  deleteAnnouncement: (id: string) => Promise<void>;
+  republishAnnouncement: (id: string) => Promise<void>;
   submitBugReport: (title: string, description: string, severity: BugReport['severity']) => Promise<void>;
   resetToDefaults: () => Promise<void>;
 
@@ -268,9 +299,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [activeView, setActiveView] = useState<'dashboard' | 'tasks' | 'past_tasks' | 'department_health' | 'reports' | 'reflections' | 'admin'>('dashboard');
   const [activeDashboardTab, setActiveDashboardTab] = useState<'member' | 'team_lead' | 'biz_ops'>('member');
+  const [adminTab, setAdminTab] = useState<'registrations' | 'users' | 'departments' | 'cloudinary' | 'announcements' | 'audit' | 'bugs' | 'restore'>('registrations');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
+  const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState<boolean>(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [selectedTaskTab, setSelectedTaskTab] = useState<'details' | 'deliverables' | 'comments' | 'history'>('details');
+  const [viewedUserId, setViewedUserId] = useState<string | null>(null);
+  const [announcements, setAnnouncements] = useState<SiteAnnouncement[]>([]);
+  const [previewAnnouncement, setPreviewAnnouncement] = useState<SiteAnnouncement | null>(null);
+  const [dismissedDialogs, setDismissedDialogs] = useState<Record<string, number>>({});
+  const [pinnedStartupAnnouncementId, setPinnedStartupAnnouncementId] = useState<string | null>(null);
 
   const openTaskModal = (
     taskId: string,
@@ -278,6 +316,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   ) => {
     setSelectedTaskTab(initialTab);
     setSelectedTaskId(taskId);
+  };
+
+  const openMemberProfile = (userId: string) => {
+    if (!userId) return;
+    setViewedUserId(userId);
   };
 
   const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
@@ -288,6 +331,182 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [selectedWeekId, setSelectedWeekId] = useState<string>(() => getCurrentWeekId());
   const [weekFilterOption, setWeekFilterOption] = useState<WeekFilterOption>('current');
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+
+  // Browser & device Back/Forward navigation history synchronization
+  type NavSnapshot = {
+    __snazzyNav: true;
+    activeView: 'dashboard' | 'tasks' | 'past_tasks' | 'department_health' | 'reports' | 'reflections' | 'admin';
+    activeDashboardTab: 'member' | 'team_lead' | 'biz_ops';
+    adminTab: 'registrations' | 'users' | 'departments' | 'cloudinary' | 'announcements' | 'audit' | 'bugs' | 'restore';
+    selectedTaskId: string | null;
+    selectedTaskTab: 'details' | 'deliverables' | 'comments' | 'history';
+    viewedUserId: string | null;
+    isPreviewAnnouncementOpen: boolean;
+    isCreateTaskOpen: boolean;
+    createTaskModalMode: 'create' | 'archive';
+    isReflectionModalOpen: boolean;
+    isUserProfileOpen: boolean;
+    isGlobalSearchOpen: boolean;
+    isMobileSidebarOpen: boolean;
+    depth?: number;
+  };
+
+  const navInitializedRef = useRef(false);
+  const historyDepthRef = useRef(0);
+  const isApplyingPopStateRef = useRef(false);
+  const pendingSilentBackRef = useRef(0);
+  const prevNavSnapshotRef = useRef<NavSnapshot | null>(null);
+
+  const countOpenOverlays = (s: NavSnapshot) =>
+    (s.selectedTaskId ? 1 : 0) +
+    (s.viewedUserId ? 1 : 0) +
+    (s.isPreviewAnnouncementOpen ? 1 : 0) +
+    (s.isCreateTaskOpen ? 1 : 0) +
+    (s.isReflectionModalOpen ? 1 : 0) +
+    (s.isUserProfileOpen ? 1 : 0) +
+    (s.isGlobalSearchOpen ? 1 : 0) +
+    (s.isMobileSidebarOpen ? 1 : 0);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handlePopState = (event: PopStateEvent) => {
+      if (pendingSilentBackRef.current > 0) {
+        pendingSilentBackRef.current -= 1;
+        return;
+      }
+
+      const state = event.state as NavSnapshot | null;
+      if (!state || !state.__snazzyNav) return;
+
+      isApplyingPopStateRef.current = true;
+      historyDepthRef.current = typeof state.depth === 'number' ? state.depth : Math.max(0, historyDepthRef.current - 1);
+
+      setActiveView(state.activeView);
+      setActiveDashboardTab(state.activeDashboardTab);
+      setAdminTab(state.adminTab);
+      setSelectedTaskId(state.selectedTaskId);
+      setSelectedTaskTab(state.selectedTaskTab);
+      setViewedUserId(state.viewedUserId ?? null);
+      if (!state.isPreviewAnnouncementOpen) {
+        setPreviewAnnouncement(null);
+      }
+      setIsCreateTaskOpen(state.isCreateTaskOpen);
+      setCreateTaskModalMode(state.createTaskModalMode);
+      setIsReflectionModalOpen(state.isReflectionModalOpen);
+      setIsUserProfileOpen(state.isUserProfileOpen);
+      setIsGlobalSearchOpen(state.isGlobalSearchOpen);
+      setIsMobileSidebarOpen(state.isMobileSidebarOpen);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    if (!isAuthenticated) {
+      navInitializedRef.current = false;
+      historyDepthRef.current = 0;
+      prevNavSnapshotRef.current = null;
+      return;
+    }
+
+    const nextSnapshot: NavSnapshot = {
+      __snazzyNav: true,
+      activeView,
+      activeDashboardTab,
+      adminTab,
+      selectedTaskId,
+      selectedTaskTab,
+      viewedUserId,
+      isPreviewAnnouncementOpen: Boolean(previewAnnouncement),
+      isCreateTaskOpen,
+      createTaskModalMode,
+      isReflectionModalOpen,
+      isUserProfileOpen,
+      isGlobalSearchOpen,
+      isMobileSidebarOpen,
+    };
+
+    if (!navInitializedRef.current) {
+      navInitializedRef.current = true;
+      historyDepthRef.current = 0;
+      const initialEntry: NavSnapshot = { ...nextSnapshot, depth: 0 };
+      prevNavSnapshotRef.current = initialEntry;
+      window.history.replaceState(initialEntry, '');
+      return;
+    }
+
+    if (isApplyingPopStateRef.current) {
+      isApplyingPopStateRef.current = false;
+      prevNavSnapshotRef.current = { ...nextSnapshot, depth: historyDepthRef.current };
+      return;
+    }
+
+    const prev = prevNavSnapshotRef.current;
+    if (!prev) {
+      prevNavSnapshotRef.current = { ...nextSnapshot, depth: historyDepthRef.current };
+      return;
+    }
+
+    const viewChanged =
+      prev.activeView !== nextSnapshot.activeView ||
+      prev.activeDashboardTab !== nextSnapshot.activeDashboardTab ||
+      (nextSnapshot.activeView === 'admin' && prev.adminTab !== nextSnapshot.adminTab);
+
+    const prevOverlays = countOpenOverlays(prev);
+    const nextOverlays = countOpenOverlays(nextSnapshot);
+    const sameOverlayChanged =
+      (prev.selectedTaskId !== nextSnapshot.selectedTaskId && Boolean(nextSnapshot.selectedTaskId)) ||
+      (prev.viewedUserId !== nextSnapshot.viewedUserId && Boolean(nextSnapshot.viewedUserId));
+
+    if (viewChanged || nextOverlays > prevOverlays || sameOverlayChanged) {
+      historyDepthRef.current += 1;
+      const entry: NavSnapshot = { ...nextSnapshot, depth: historyDepthRef.current };
+      prevNavSnapshotRef.current = entry;
+      window.history.pushState(entry, '');
+    } else if (nextOverlays < prevOverlays) {
+      if (
+        historyDepthRef.current > 0 &&
+        window.history.state?.__snazzyNav &&
+        window.history.state?.depth === historyDepthRef.current
+      ) {
+        historyDepthRef.current -= 1;
+        pendingSilentBackRef.current += 1;
+        prevNavSnapshotRef.current = { ...nextSnapshot, depth: historyDepthRef.current };
+        window.history.back();
+      } else {
+        const entry: NavSnapshot = { ...nextSnapshot, depth: historyDepthRef.current };
+        prevNavSnapshotRef.current = entry;
+        window.history.replaceState(entry, '');
+      }
+    } else if (
+      prev.selectedTaskTab !== nextSnapshot.selectedTaskTab ||
+      prev.createTaskModalMode !== nextSnapshot.createTaskModalMode ||
+      prev.adminTab !== nextSnapshot.adminTab
+    ) {
+      const entry: NavSnapshot = { ...nextSnapshot, depth: historyDepthRef.current };
+      prevNavSnapshotRef.current = entry;
+      window.history.replaceState(entry, '');
+    }
+  }, [
+    isAuthenticated,
+    activeView,
+    activeDashboardTab,
+    adminTab,
+    selectedTaskId,
+    selectedTaskTab,
+    viewedUserId,
+    previewAnnouncement,
+    isCreateTaskOpen,
+    createTaskModalMode,
+    isReflectionModalOpen,
+    isUserProfileOpen,
+    isGlobalSearchOpen,
+    isMobileSidebarOpen,
+  ]);
 
   // Cloudinary Deliverable Storage State (Active Primary Engine)
   const [cloudinaryConfig, setCloudinaryConfig] = useState<CloudinaryConfig>(() => {
@@ -816,6 +1035,61 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Non-critical if settings collection is not created yet
     });
 
+    const unsubAnnouncements = onSnapshot(
+      collection(db, 'settings'),
+      (snapshot) => {
+        const list: SiteAnnouncement[] = [];
+        snapshot.docs.forEach((d) => {
+          const data = d.data();
+          if (d.id.startsWith('announcement_') || data?.docType === 'site_announcement') {
+            const seenBy: Record<string, AnnouncementSeenReceipt> = {};
+            if (data.seenBy && typeof data.seenBy === 'object') {
+              Object.entries(data.seenBy as Record<string, any>).forEach(([uid, rec]) => {
+                if (rec && typeof rec === 'object') {
+                  seenBy[uid] = {
+                    userId: typeof rec.userId === 'string' ? rec.userId : uid,
+                    userName: typeof rec.userName === 'string' ? rec.userName : 'Team Member',
+                    seenAt: typeof rec.seenAt === 'string' ? rec.seenAt : new Date().toISOString(),
+                    revision: typeof rec.revision === 'number' ? rec.revision : 1,
+                  };
+                }
+              });
+            }
+
+            list.push({
+              id: d.id,
+              docType: 'site_announcement',
+              title: typeof data.title === 'string' ? data.title : 'Site Update',
+              summary: typeof data.summary === 'string' ? data.summary : '',
+              highlights: Array.isArray(data.highlights) ? data.highlights : [],
+              category: (['feature', 'fix', 'improvement', 'notice'].includes(data.category)
+                ? data.category
+                : 'feature') as AnnouncementCategory,
+              enabled: Boolean(data.enabled),
+              revision: typeof data.revision === 'number' ? data.revision : 1,
+              createdBy: typeof data.createdBy === 'string' ? data.createdBy : '',
+              createdByName: typeof data.createdByName === 'string' ? data.createdByName : 'Admin',
+              createdAt: typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString(),
+              updatedAt: typeof data.updatedAt === 'string' ? data.updatedAt : new Date().toISOString(),
+              activatedAt: typeof data.activatedAt === 'string' ? data.activatedAt : undefined,
+              actionLabel: typeof data.actionLabel === 'string' ? data.actionLabel : undefined,
+              actionView: data.actionView || undefined,
+              seenBy,
+            });
+          }
+        });
+        list.sort(
+          (a, b) =>
+            new Date(b.activatedAt || b.updatedAt || b.createdAt).getTime() -
+            new Date(a.activatedAt || a.updatedAt || a.createdAt).getTime()
+        );
+        setAnnouncements(list);
+      },
+      () => {
+        // Non-critical fallback
+      }
+    );
+
     return () => {
       unsubUsers();
       unsubTasks();
@@ -827,6 +1101,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       unsubComments();
       unsubCloudinary();
       unsubWorkDrive();
+      unsubAnnouncements();
     };
   }, [isAuthenticated, currentUser?.id]);
 
@@ -1205,6 +1480,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     try {
       await setDoc(doc(db, 'tasks', taskId), cleanForFirestore(newTask));
+      if (assignedOwnerId && assignedOwnerId !== currentUser.id) {
+        await sendNotification(
+          assignedOwnerId,
+          'New Task Assigned to You',
+          `${currentUser.name} assigned "${newTask.title}" (${newTask.departmentName}) to you.`,
+          'watch_update',
+          taskId
+        );
+      }
       if (initialStatus === 'Approved' && !hasLead) {
         await logAuditEvent('TASK_AUTO_APPROVED', 'task', `Task "${newTask.title}" was auto-approved (${newTask.departmentName} has no assigned Team Lead).`);
       } else {
@@ -1240,6 +1524,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     let finalUpdates = { ...updates };
 
+    // Ensure reassigned owner is included in watchers
+    const isReassigned = Boolean(finalUpdates.ownerId && finalUpdates.ownerId !== task.ownerId);
+    if (isReassigned && finalUpdates.ownerId) {
+      finalUpdates.watchers = Array.from(new Set([...(finalUpdates.watchers || task.watchers || []), finalUpdates.ownerId]));
+    }
+
     // Automated progress percentage computation:
     if (finalUpdates.status) {
       finalUpdates.progressPercent = getAutomaticProgress(finalUpdates.status);
@@ -1254,11 +1544,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       await updateDoc(doc(db, 'tasks', taskId), firestorePayload);
 
+      if (isReassigned && finalUpdates.ownerId && finalUpdates.ownerId !== currentUser.id) {
+        await sendNotification(
+          finalUpdates.ownerId,
+          'Task Assigned to You',
+          `${currentUser.name} assigned "${finalUpdates.title || task.title}" to you.`,
+          'watch_update',
+          taskId
+        );
+      }
+
       // Audit log on who ever updates a task:
       const userDeptNames = departments
         .filter((d) => (currentUser.departmentIds || []).includes(d.id))
         .map((d) => d.name);
-      if (crossDept && !isOwner && !isAdmin) {
+      if (isReassigned) {
+        await logAuditEvent(
+          'TASK_REASSIGNED',
+          'task',
+          `${currentUser.name} reassigned task "${task.title}" from ${task.ownerName} to ${finalUpdates.ownerName || finalUpdates.ownerId}`
+        );
+      } else if (crossDept && !isOwner && !isAdmin) {
         await logAuditEvent(
           'TASK_CROSS_DEPT_UPDATE',
           'task',
@@ -2168,6 +2474,308 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return 0;
   };
 
+  // Load dismissed startup announcements for current user
+  useEffect(() => {
+    setPinnedStartupAnnouncementId(null);
+    if (!currentUser?.id || typeof window === 'undefined') {
+      setDismissedDialogs({});
+      return;
+    }
+    try {
+      const saved = localStorage.getItem(`snazzy_dismissed_dialogs_${currentUser.id}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object') {
+          setDismissedDialogs(parsed);
+          return;
+        }
+      }
+    } catch {
+      // ignore invalid storage
+    }
+    setDismissedDialogs({});
+  }, [currentUser?.id]);
+
+  const unseenEnabledAnnouncements = announcements.filter((a) => {
+    if (!a.enabled || !currentUser?.id) return false;
+    const rev = a.revision || 1;
+    const dismissedRev = dismissedDialogs[a.id] ?? 0;
+    const firestoreSeenRev = a.seenBy?.[currentUser.id]?.revision ?? 0;
+    return dismissedRev < rev && firestoreSeenRev < rev;
+  });
+
+  // Pin currently displayed startup dialog so recording the view in Firestore does not close it prematurely
+  useEffect(() => {
+    if (!isAuthenticated || currentUser?.registrationStatus !== 'approved') {
+      setPinnedStartupAnnouncementId(null);
+      return;
+    }
+
+    if (pinnedStartupAnnouncementId) {
+      const currentPinned = announcements.find((a) => a.id === pinnedStartupAnnouncementId);
+      const rev = currentPinned?.revision || 1;
+      const isDismissedLocally = (dismissedDialogs[pinnedStartupAnnouncementId] ?? 0) >= rev;
+      if (!currentPinned || !currentPinned.enabled || isDismissedLocally) {
+        setPinnedStartupAnnouncementId(unseenEnabledAnnouncements[0]?.id || null);
+      }
+      return;
+    }
+
+    if (unseenEnabledAnnouncements.length > 0) {
+      setPinnedStartupAnnouncementId(unseenEnabledAnnouncements[0].id);
+    }
+  }, [
+    isAuthenticated,
+    currentUser?.id,
+    currentUser?.registrationStatus,
+    announcements,
+    dismissedDialogs,
+    pinnedStartupAnnouncementId,
+    unseenEnabledAnnouncements.length,
+  ]);
+
+  const activeStartupAnnouncement: SiteAnnouncement | null =
+    isAuthenticated && currentUser?.registrationStatus === 'approved' && pinnedStartupAnnouncementId
+      ? announcements.find((a) => a.id === pinnedStartupAnnouncementId && a.enabled) || null
+      : null;
+
+  const startupAnnouncementQueue: SiteAnnouncement[] = activeStartupAnnouncement
+    ? [
+        activeStartupAnnouncement,
+        ...unseenEnabledAnnouncements.filter((a) => a.id !== activeStartupAnnouncement.id),
+      ]
+    : [];
+
+  const remainingUnseenCount = startupAnnouncementQueue.length || unseenEnabledAnnouncements.length;
+
+  const markAnnouncementSeen = async (announcementId: string) => {
+    if (!currentUser?.id || !announcementId) return;
+    const found = announcements.find((a) => a.id === announcementId);
+    if (!found) return;
+    const rev = found.revision || 1;
+    const existingReceipt = found.seenBy?.[currentUser.id];
+    if (existingReceipt && existingReceipt.revision >= rev) return;
+
+    const receipt: AnnouncementSeenReceipt = {
+      userId: currentUser.id,
+      userName: (currentUser.name || currentUser.email || 'Team Member').slice(0, 128),
+      seenAt: new Date().toISOString(),
+      revision: rev,
+    };
+
+    setAnnouncements((prev) =>
+      prev.map((a) =>
+        a.id === announcementId
+          ? {
+              ...a,
+              seenBy: {
+                ...(a.seenBy || {}),
+                [currentUser.id]: receipt,
+              },
+            }
+          : a
+      )
+    );
+
+    try {
+      await setDoc(
+        doc(db, 'settings', announcementId),
+        {
+          seenBy: {
+            [currentUser.id]: receipt,
+          },
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      console.warn('Could not persist announcement read receipt:', err);
+    }
+  };
+
+  const dismissStartupAnnouncement = (announcementId: string) => {
+    if (!currentUser?.id || !announcementId) return;
+    const found = announcements.find((a) => a.id === announcementId);
+    const rev = found?.revision || 1;
+    markAnnouncementSeen(announcementId);
+    setDismissedDialogs((prev) => {
+      const next = { ...prev, [announcementId]: rev };
+      try {
+        localStorage.setItem(`snazzy_dismissed_dialogs_${currentUser.id}`, JSON.stringify(next));
+      } catch {
+        // ignore quota errors
+      }
+      return next;
+    });
+    const nextUnseen = unseenEnabledAnnouncements.find((a) => a.id !== announcementId);
+    setPinnedStartupAnnouncementId((prev) =>
+      prev === announcementId ? (nextUnseen?.id || null) : prev
+    );
+  };
+
+  const createAnnouncement = async (data: {
+    title: string;
+    summary: string;
+    highlights?: string[];
+    category: AnnouncementCategory;
+    enabled: boolean;
+    actionLabel?: string;
+    actionView?: SiteAnnouncement['actionView'];
+  }): Promise<SiteAnnouncement> => {
+    const id = `announcement_${Date.now()}`;
+    const now = new Date().toISOString();
+    const cleanedHighlights = (data.highlights || [])
+      .map((line) => line.trim().slice(0, 240))
+      .filter(Boolean)
+      .slice(0, 8);
+
+    const record: SiteAnnouncement = {
+      id,
+      docType: 'site_announcement',
+      title: data.title.trim().slice(0, 160),
+      summary: data.summary.trim().slice(0, 2000),
+      highlights: cleanedHighlights,
+      category: data.category || 'feature',
+      enabled: Boolean(data.enabled),
+      revision: 1,
+      createdBy: currentUser.id,
+      createdByName: currentUser.name || 'Admin',
+      createdAt: now,
+      updatedAt: now,
+      ...(data.enabled ? { activatedAt: now } : {}),
+      ...(data.actionView ? { actionView: data.actionView } : {}),
+      ...(data.actionLabel?.trim() ? { actionLabel: data.actionLabel.trim().slice(0, 48) } : {}),
+    };
+
+    setAnnouncements((prev) => [record, ...prev]);
+    try {
+      await setDoc(doc(db, 'settings', id), cleanForFirestore(record));
+      await logAuditEvent(
+        'SITE_DIALOG_CREATED',
+        'system',
+        `Created startup dialog "${record.title}" (${record.enabled ? 'On' : 'Off'})`
+      );
+    } catch (err) {
+      handleFirestoreError(err, OperationType.CREATE, `settings/${id}`);
+    }
+    return record;
+  };
+
+  const updateAnnouncement = async (id: string, updates: Partial<SiteAnnouncement>) => {
+    const existing = announcements.find((a) => a.id === id);
+    if (!existing) return;
+    const now = new Date().toISOString();
+    const sanitizedHighlights = updates.highlights
+      ? updates.highlights.map((h) => h.trim().slice(0, 240)).filter(Boolean).slice(0, 8)
+      : existing.highlights;
+
+    const turningOn = !existing.enabled && updates.enabled === true;
+    const nextActivatedAt = turningOn ? now : existing.activatedAt;
+
+    const merged: SiteAnnouncement = {
+      ...existing,
+      ...updates,
+      id,
+      docType: 'site_announcement',
+      title: typeof updates.title === 'string' ? updates.title.trim().slice(0, 160) : existing.title,
+      summary: typeof updates.summary === 'string' ? updates.summary.trim().slice(0, 2000) : existing.summary,
+      highlights: sanitizedHighlights,
+      updatedAt: now,
+      ...(nextActivatedAt ? { activatedAt: nextActivatedAt } : {}),
+    };
+
+    setAnnouncements((prev) => prev.map((a) => (a.id === id ? merged : a)));
+    try {
+      await setDoc(doc(db, 'settings', id), cleanForFirestore(merged));
+      await logAuditEvent('SITE_DIALOG_UPDATED', 'system', `Updated startup dialog "${merged.title}"`);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `settings/${id}`);
+    }
+  };
+
+  const toggleAnnouncement = async (id: string) => {
+    const existing = announcements.find((a) => a.id === id);
+    if (!existing) return;
+    const nextEnabled = !existing.enabled;
+    const now = new Date().toISOString();
+    const nextActivatedAt = nextEnabled ? now : existing.activatedAt;
+
+    setAnnouncements((prev) =>
+      prev.map((a) =>
+        a.id === id
+          ? {
+              ...a,
+              enabled: nextEnabled,
+              updatedAt: now,
+              ...(nextActivatedAt ? { activatedAt: nextActivatedAt } : {}),
+            }
+          : a
+      )
+    );
+    try {
+      await setDoc(
+        doc(db, 'settings', id),
+        {
+          enabled: nextEnabled,
+          updatedAt: now,
+          ...(nextEnabled ? { activatedAt: now } : {}),
+        },
+        { merge: true }
+      );
+      await logAuditEvent(
+        nextEnabled ? 'SITE_DIALOG_ENABLED' : 'SITE_DIALOG_DISABLED',
+        'system',
+        `${nextEnabled ? 'Turned On' : 'Turned Off'} startup dialog "${existing.title}"`
+      );
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `settings/${id}`);
+    }
+  };
+
+  const deleteAnnouncement = async (id: string) => {
+    const existing = announcements.find((a) => a.id === id);
+    setAnnouncements((prev) => prev.filter((a) => a.id !== id));
+    if (previewAnnouncement?.id === id) {
+      setPreviewAnnouncement(null);
+    }
+    try {
+      await deleteDoc(doc(db, 'settings', id));
+      if (existing) {
+        await logAuditEvent('SITE_DIALOG_DELETED', 'system', `Deleted startup dialog "${existing.title}"`);
+      }
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `settings/${id}`);
+    }
+  };
+
+  const republishAnnouncement = async (id: string) => {
+    const existing = announcements.find((a) => a.id === id);
+    if (!existing) return;
+    const nextRevision = (existing.revision || 1) + 1;
+    const now = new Date().toISOString();
+
+    setAnnouncements((prev) =>
+      prev.map((a) =>
+        a.id === id
+          ? { ...a, enabled: true, revision: nextRevision, updatedAt: now, activatedAt: now }
+          : a
+      )
+    );
+    try {
+      await setDoc(
+        doc(db, 'settings', id),
+        { enabled: true, revision: nextRevision, updatedAt: now, activatedAt: now },
+        { merge: true }
+      );
+      await logAuditEvent(
+        'SITE_DIALOG_REPUBLISHED',
+        'system',
+        `Re-triggered startup dialog "${existing.title}" (revision ${nextRevision}) for all team members`
+      );
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `settings/${id}`);
+    }
+  };
+
   // Misc Actions
   const submitBugReport = async (title: string, description: string, severity: BugReport['severity']) => {
     const bugId = 'bug-' + Date.now();
@@ -2239,6 +2847,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setIsAuthenticated,
         isUserProfileOpen,
         setIsUserProfileOpen,
+        viewedUserId,
+        setViewedUserId,
+        openMemberProfile,
         login,
         googleSignIn,
         logout,
@@ -2252,8 +2863,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setActiveView,
         activeDashboardTab,
         setActiveDashboardTab,
+        adminTab,
+        setAdminTab,
         isMobileSidebarOpen,
         setIsMobileSidebarOpen,
+        isGlobalSearchOpen,
+        setIsGlobalSearchOpen,
         selectedTaskId,
         setSelectedTaskId,
         selectedTaskTab,
@@ -2322,6 +2937,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         clearReadNotifications,
         clearAllNotifications,
         checkDeadlineReminders,
+        announcements,
+        activeStartupAnnouncement,
+        startupAnnouncementQueue,
+        unseenAnnouncementsCount: remainingUnseenCount,
+        previewAnnouncement,
+        setPreviewAnnouncement,
+        markAnnouncementSeen,
+        dismissStartupAnnouncement,
+        createAnnouncement,
+        updateAnnouncement,
+        toggleAnnouncement,
+        deleteAnnouncement,
+        republishAnnouncement,
         submitBugReport,
         resetToDefaults,
         isTeamLead,

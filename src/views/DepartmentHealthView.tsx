@@ -34,7 +34,7 @@ import {
 } from 'lucide-react';
 
 export const DepartmentHealthView: React.FC = () => {
-  const { tasks, departments, users, activeWeek, weeks } = useApp();
+  const { tasks, departments, users, activeWeek, weeks, openMemberProfile } = useApp();
 
   const [selectedDeptFilter, setSelectedDeptFilter] = useState<string>('all');
   const [velocityViewMode, setVelocityViewMode] = useState<'dual' | 'velocity' | 'volume'>('dual');
@@ -170,7 +170,7 @@ export const DepartmentHealthView: React.FC = () => {
             <select
               value={selectedDeptFilter}
               onChange={(e) => setSelectedDeptFilter(e.target.value)}
-              className="bg-transparent text-xs font-bold text-slate-900 dark:text-white focus:outline-none cursor-pointer"
+              className="bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white rounded-lg px-1.5 py-0.5 focus:outline-none cursor-pointer"
             >
               <option value="all">All Departments (Organization-Wide)</option>
               {safeDepts.map((d) => (
@@ -568,11 +568,29 @@ export const DepartmentHealthView: React.FC = () => {
                         </div>
                       </td>
                       <td className="p-4 font-semibold text-slate-700 dark:text-slate-300">
-                        {leads.length > 0
-                          ? leads
-                              .map((id) => (users || []).find((u) => u.id === id)?.name || 'Designated Lead')
-                              .join(', ')
-                          : 'No Lead Assigned (Auto-Approves)'}
+                        {leads.length > 0 ? (
+                          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                            {leads.map((id, idx) => {
+                              const leadUser = (users || []).find((u) => u.id === id);
+                              const leadName = leadUser?.name || 'Designated Lead';
+                              return (
+                                <React.Fragment key={id}>
+                                  <button
+                                    type="button"
+                                    onClick={() => openMemberProfile(id)}
+                                    className="hover:text-[#005CBD] dark:hover:text-blue-400 hover:underline transition-colors text-left"
+                                    title={`View ${leadName}'s profile`}
+                                  >
+                                    {leadName}
+                                  </button>
+                                  {idx < leads.length - 1 && <span className="text-slate-400">,</span>}
+                                </React.Fragment>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          'No Lead Assigned (Auto-Approves)'
+                        )}
                       </td>
                       <td className="p-4 font-mono font-bold text-[#005CBD] dark:text-blue-400">
                         {dTasks.length - approved}

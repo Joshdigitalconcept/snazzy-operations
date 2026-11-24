@@ -72,6 +72,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ taskId, onClose }) => {
     selectedTaskTab,
     setSelectedTaskTab,
     setActiveView,
+    openMemberProfile,
   } = useApp();
 
   const task = tasks.find((t) => t.id === taskId);
@@ -122,6 +123,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ taskId, onClose }) => {
   const [editDescription, setEditDescription] = useState('');
   const [editObjective, setEditObjective] = useState('');
   const [editDepartmentId, setEditDepartmentId] = useState('');
+  const [editOwnerId, setEditOwnerId] = useState('');
   const [editPriority, setEditPriority] = useState<import('../types').TaskPriority>('Medium');
   const [editDeadline, setEditDeadline] = useState('');
   const [editStatus, setEditStatus] = useState<TaskStatus>('Not Started');
@@ -136,6 +138,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ taskId, onClose }) => {
     setEditDescription(task.description);
     setEditObjective(task.objective);
     setEditDepartmentId(task.departmentId);
+    setEditOwnerId(task.ownerId);
     setEditPriority(task.priority);
     setEditDeadline(task.deadline);
     setEditStatus(task.status);
@@ -169,6 +172,7 @@ export const TaskModal: React.FC<TaskModalProps> = ({ taskId, onClose }) => {
 
     const finalDeptId = canChangeDepartment ? editDepartmentId : task.departmentId;
     const selectedDeptObj = departments.find((d) => d.id === finalDeptId);
+    const selectedOwnerObj = isAdmin ? users.find((u) => u.id === editOwnerId) : undefined;
     const isLocked = task.status === 'Approved' || task.status === 'Pending Approval';
 
     updateTask(task.id, {
@@ -177,6 +181,13 @@ export const TaskModal: React.FC<TaskModalProps> = ({ taskId, onClose }) => {
       objective: editObjective,
       departmentId: finalDeptId,
       departmentName: selectedDeptObj ? selectedDeptObj.name : task.departmentName,
+      ...(selectedOwnerObj
+        ? {
+            ownerId: selectedOwnerObj.id,
+            ownerName: selectedOwnerObj.name,
+            ownerAvatar: selectedOwnerObj.avatarUrl,
+          }
+        : {}),
       priority: editPriority,
       deadline: editDeadline,
       status: isLocked ? task.status : editStatus,
@@ -632,15 +643,24 @@ export const TaskModal: React.FC<TaskModalProps> = ({ taskId, onClose }) => {
           {/* Owner & Meta line */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-600 dark:text-slate-400 pt-1 border-t border-slate-200/60 dark:border-slate-800">
             <div className="flex items-center gap-2 flex-wrap min-w-0">
-              <img
-                src={
-                  task.ownerAvatar ||
-                  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
-                }
-                alt={task.ownerName}
-                className="w-5 h-5 sm:w-6 sm:h-6 rounded-full object-cover shrink-0 ring-1 ring-slate-200 dark:ring-slate-700"
-              />
-              <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">{task.ownerName}</span>
+              <button
+                type="button"
+                onClick={() => openMemberProfile(task.ownerId)}
+                className="flex items-center gap-2 min-w-0 group hover:text-[#005CBD] dark:hover:text-blue-400 transition-colors"
+                title={`View ${task.ownerName}'s profile`}
+              >
+                <img
+                  src={
+                    task.ownerAvatar ||
+                    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+                  }
+                  alt={task.ownerName}
+                  className="w-5 h-5 sm:w-6 sm:h-6 rounded-full object-cover shrink-0 ring-1 ring-slate-200 dark:ring-slate-700 group-hover:ring-[#005CBD]"
+                />
+                <span className="font-semibold text-slate-800 dark:text-slate-200 group-hover:text-[#005CBD] dark:group-hover:text-blue-400 group-hover:underline truncate">
+                  {task.ownerName}
+                </span>
+              </button>
               {task.ownerId === currentUser?.id ? (
                 <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 dark:bg-blue-950/60 text-[#005CBD] dark:text-blue-300">
                   You
@@ -1666,6 +1686,45 @@ export const TaskModal: React.FC<TaskModalProps> = ({ taskId, onClose }) => {
                   className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-semibold focus:ring-2 focus:ring-[#005CBD]"
                 />
               </div>
+
+              {/* Admin Assignee Override */}
+              {isAdmin && (
+                <div>
+                  <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Assigned Individual
+                  </label>
+                  <select
+                    value={editOwnerId}
+                    onChange={(e) => {
+                      const nextOwnerId = e.target.value;
+                      setEditOwnerId(nextOwnerId);
+                      const nextOwner = users.find((u) => u.id === nextOwnerId);
+                      const primaryDept = nextOwner?.departmentIds?.[0];
+                      if (primaryDept && departments.some((d) => !d.archived && d.id === primaryDept)) {
+                        setEditDepartmentId(primaryDept);
+                      }
+                    }}
+                    className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white font-medium focus:ring-2 focus:ring-[#005CBD]"
+                  >
+                    {(users || [])
+                      .filter((u) => u.registrationStatus !== 'rejected')
+                      .sort((a, b) => {
+                        if (a.id === currentUser?.id) return -1;
+                        if (b.id === currentUser?.id) return 1;
+                        return (a.name || '').localeCompare(b.name || '');
+                      })
+                      .map((u) => {
+                        const uDept = departments.find((d) => (u.departmentIds || []).includes(d.id));
+                        const suffix = u.id === currentUser?.id ? ' (Yourself)' : uDept ? ` — ${uDept.name}` : '';
+                        return (
+                          <option key={u.id} value={u.id}>
+                            {u.name}{suffix}
+                          </option>
+                        );
+                      })}
+                  </select>
+                </div>
+              )}
 
               {/* Department & Priority */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

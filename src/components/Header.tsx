@@ -50,13 +50,14 @@ export const Header: React.FC = () => {
     logout,
     isMobileSidebarOpen,
     setIsMobileSidebarOpen,
+    isGlobalSearchOpen,
+    setIsGlobalSearchOpen,
   } = useApp();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
   const [notifFilter, setNotifFilter] = useState<'all' | 'deadline' | 'comment' | 'mention' | 'approval' | 'watch_update'>('all');
   const [scanMessage, setScanMessage] = useState<string | null>(null);
 

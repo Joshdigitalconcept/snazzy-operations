@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { Sparkles, CheckCircle2, Clock, ShieldAlert, Plus, Filter, User } from 'lucide-react';
 
 export const ReflectionsView: React.FC = () => {
-  const { reflections, departments, currentUser, setIsReflectionModalOpen, activeWeek } = useApp();
+  const { reflections, departments, currentUser, setIsReflectionModalOpen, activeWeek, openMemberProfile } = useApp();
 
   const [selectedDept, setSelectedDept] = useState('all');
 
@@ -79,16 +79,30 @@ export const ReflectionsView: React.FC = () => {
             >
               <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
                 <div className="flex items-center gap-3">
-                  <img
-                    src={
-                      refl.userAvatar ||
-                      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
-                    }
-                    alt={refl.userName}
-                    className="w-8 h-8 rounded-full object-cover ring-1 ring-slate-200 dark:ring-slate-700"
-                  />
+                  <button
+                    type="button"
+                    onClick={() => openMemberProfile(refl.userId)}
+                    className="shrink-0 rounded-full focus:outline-none focus:ring-2 focus:ring-[#005CBD]"
+                    title={`View ${refl.userName}'s profile`}
+                  >
+                    <img
+                      src={
+                        refl.userAvatar ||
+                        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+                      }
+                      alt={refl.userName}
+                      className="w-8 h-8 rounded-full object-cover ring-1 ring-slate-200 dark:ring-slate-700 hover:ring-[#005CBD]"
+                    />
+                  </button>
                   <div>
-                    <div className="font-bold text-xs text-slate-900 dark:text-white">{refl.userName}</div>
+                    <button
+                      type="button"
+                      onClick={() => openMemberProfile(refl.userId)}
+                      className="font-bold text-xs text-slate-900 dark:text-white hover:text-[#005CBD] dark:hover:text-blue-400 hover:underline text-left transition-colors"
+                      title={`View ${refl.userName}'s profile`}
+                    >
+                      {refl.userName}
+                    </button>
                     <div className="text-[11px] text-slate-500 dark:text-slate-400">
                       {refl.departmentName} • Cycle {refl.weekId}
                     </div>

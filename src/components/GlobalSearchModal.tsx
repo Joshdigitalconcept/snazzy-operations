@@ -33,8 +33,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
     auditLogs,
     setSelectedTaskId,
     setActiveView,
-    setIsUserProfileOpen,
-    setSelectedUserId,
+    openMemberProfile,
   } = useApp();
 
   const [query, setQuery] = useState('');
@@ -162,8 +161,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
   };
 
   const handleSelectMember = (userId: string) => {
-    setSelectedUserId(userId);
-    setIsUserProfileOpen(true);
+    openMemberProfile(userId);
     onClose();
   };
 

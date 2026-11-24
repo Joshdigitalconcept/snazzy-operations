@@ -149,7 +149,21 @@
         "apiSecret": { "type": "string" },
         "uploadPreset": { "type": "string" },
         "connected": { "type": "boolean" },
-        "lastSyncedAt": { "type": "string" }
+        "lastSyncedAt": { "type": "string" },
+        "docType": { "type": "string" },
+        "title": { "type": "string", "maxLength": 160 },
+        "summary": { "type": "string", "maxLength": 2000 },
+        "highlights": { "type": "array" },
+        "category": { "type": "string", "enum": ["feature", "fix", "improvement", "notice"] },
+        "revision": { "type": "number" },
+        "createdBy": { "type": "string" },
+        "createdByName": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "activatedAt": { "type": "string" },
+        "actionLabel": { "type": "string" },
+        "actionView": { "type": "string" },
+        "seenBy": { "type": "object" }
       },
       "required": ["id"]
     }

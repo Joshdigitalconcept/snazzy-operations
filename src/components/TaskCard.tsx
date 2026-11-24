@@ -18,7 +18,7 @@ interface TaskCardProps {
 }
 
 export const TaskCard: React.FC<TaskCardProps> = ({ task, compact = false }) => {
-  const { setSelectedTaskId, openTaskModal, getTaskComments, currentUser, activeWeek } = useApp();
+  const { setSelectedTaskId, openTaskModal, openMemberProfile, getTaskComments, currentUser, activeWeek } = useApp();
   const commentCount = getTaskComments(task.id)?.length || 0;
   const isPast = isPastTask(task, activeWeek);
 
@@ -84,20 +84,40 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, compact = false }) => 
         className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 rounded-xl shadow-2xs hover:shadow-md transition-all cursor-pointer group flex items-center justify-between"
       >
         <div className="flex items-center gap-3 min-w-0">
-          <img
-            src={
-              task.ownerAvatar ||
-              'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
-            }
-            alt={task.ownerName}
-            className="w-7 h-7 rounded-full object-cover shrink-0 ring-1 ring-slate-200 dark:ring-slate-700"
-          />
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              openMemberProfile(task.ownerId);
+            }}
+            className="shrink-0 rounded-full focus:outline-none focus:ring-2 focus:ring-[#005CBD]"
+            title={`View ${task.ownerName}'s profile`}
+          >
+            <img
+              src={
+                task.ownerAvatar ||
+                'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+              }
+              alt={task.ownerName}
+              className="w-7 h-7 rounded-full object-cover ring-1 ring-slate-200 dark:ring-slate-700 hover:ring-[#005CBD] transition-all"
+            />
+          </button>
           <div className="min-w-0">
             <h4 className="font-semibold text-xs text-slate-900 dark:text-slate-100 group-hover:text-[#005CBD] dark:group-hover:text-blue-400 truncate">
               {task.title}
             </h4>
             <div className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5 mt-0.5">
-              <span className="font-medium text-slate-700 dark:text-slate-300">{task.ownerName}</span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openMemberProfile(task.ownerId);
+                }}
+                className="font-medium text-slate-700 dark:text-slate-300 hover:text-[#005CBD] dark:hover:text-blue-400 hover:underline transition-colors"
+                title={`View ${task.ownerName}'s profile`}
+              >
+                {task.ownerName}
+              </button>
               {task.ownerId === currentUser?.id && (
                 <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-blue-50 dark:bg-blue-950/60 text-[#005CBD] dark:text-blue-400 border border-blue-200/60 dark:border-blue-800">
                   You
@@ -180,15 +200,27 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, compact = false }) => 
       {/* Footer Info */}
       <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
         <div className="flex items-center gap-1.5 min-w-0">
-          <img
-            src={
-              task.ownerAvatar ||
-              'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
-            }
-            alt={task.ownerName}
-            className="w-5 h-5 rounded-full object-cover ring-1 ring-slate-200 dark:ring-slate-700"
-          />
-          <span className="font-medium text-slate-700 dark:text-slate-300 truncate max-w-[85px]">{task.ownerName}</span>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              openMemberProfile(task.ownerId);
+            }}
+            className="flex items-center gap-1.5 min-w-0 group/owner hover:text-[#005CBD] dark:hover:text-blue-400 transition-colors"
+            title={`View ${task.ownerName}'s profile`}
+          >
+            <img
+              src={
+                task.ownerAvatar ||
+                'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+              }
+              alt={task.ownerName}
+              className="w-5 h-5 rounded-full object-cover ring-1 ring-slate-200 dark:ring-slate-700 group-hover/owner:ring-[#005CBD] shrink-0"
+            />
+            <span className="font-medium text-slate-700 dark:text-slate-300 group-hover/owner:text-[#005CBD] dark:group-hover/owner:text-blue-400 group-hover/owner:underline truncate max-w-[85px]">
+              {task.ownerName}
+            </span>
+          </button>
           {task.ownerId === currentUser?.id && (
             <span className="px-1 py-0.2 rounded text-[9px] font-bold bg-blue-50 dark:bg-blue-950/60 text-[#005CBD] dark:text-blue-400 border border-blue-200/60 dark:border-blue-800">
               You

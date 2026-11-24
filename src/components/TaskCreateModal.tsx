@@ -18,6 +18,7 @@ import {
   ChevronDown,
   ChevronUp,
   Lock,
+  User as UserIcon,
 } from 'lucide-react';
 
 interface TaskCreateModalProps {
@@ -29,6 +30,7 @@ interface DraftTaskItem {
   draftId: string;
   title: string;
   deptId: string;
+  ownerId: string;
   priority: TaskPriority;
   startDate: string;
   deadline: string;
@@ -41,9 +43,16 @@ interface DraftTaskItem {
 }
 
 export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({ onClose, initialMode = 'create' }) => {
-  const { currentUser, departments, createTask, updateTask, activeWeek, weeks, tasks } = useApp();
+  const { currentUser, users, departments, createTask, updateTask, activeWeek, weeks, tasks } = useApp();
 
   const isAdmin = currentUser?.role === 'admin';
+  const assignableUsers = (users || [])
+    .filter((u) => u.registrationStatus !== 'rejected')
+    .sort((a, b) => {
+      if (a.id === currentUser?.id) return -1;
+      if (b.id === currentUser?.id) return 1;
+      return (a.name || '').localeCompare(b.name || '');
+    });
   const isBizOpsDept = (departments || []).some(
     (d) =>
       ((currentUser?.departmentIds || []).includes(d.id) || (d.teamLeadIds || []).includes(currentUser?.id || '')) &&
@@ -63,10 +72,11 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({ onClose, initi
     ? currentWeekObj.endDate
     : new Date(Date.now() + 5 * 86400000).toISOString().split('T')[0];
 
-  const createEmptyDraftTask = (overrideDeptId?: string): DraftTaskItem => ({
+  const createEmptyDraftTask = (overrideDeptId?: string, overrideOwnerId?: string): DraftTaskItem => ({
     draftId: 'draft-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
     title: '',
     deptId: canChangeDepartment ? (overrideDeptId || userAssignedDept.id) : userAssignedDept.id,
+    ownerId: overrideOwnerId || currentUser?.id || '',
     priority: 'Medium',
     startDate: defaultStartDate,
     deadline: defaultDeadline,
@@ -110,7 +120,8 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({ onClose, initi
   const handleAddAnotherTask = () => {
     const lastTask = draftTasks[draftTasks.length - 1];
     const nextDeptId = canChangeDepartment ? (lastTask?.deptId || userAssignedDept.id) : userAssignedDept.id;
-    const nextDraft = createEmptyDraftTask(nextDeptId);
+    const nextOwnerId = isAdmin ? (lastTask?.ownerId || currentUser?.id || '') : (currentUser?.id || '');
+    const nextDraft = createEmptyDraftTask(nextDeptId, nextOwnerId);
     setDraftTasks((prev) => [...prev, nextDraft]);
   };
 
@@ -120,6 +131,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({ onClose, initi
       draftId: 'draft-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
       title: item.title ? `${item.title} (Copy)` : '',
       deptId: canChangeDepartment ? item.deptId : userAssignedDept.id,
+      ownerId: isAdmin ? item.ownerId : (currentUser?.id || ''),
       collapsed: false,
     };
     setDraftTasks((prev) => [...prev, duplicated]);
@@ -153,6 +165,7 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({ onClose, initi
       objective: archivedTask.objective || '',
       priority: archivedTask.priority || 'Medium',
       deptId: canChangeDepartment ? (archivedTask.departmentId || userAssignedDept.id) : userAssignedDept.id,
+      ownerId: isAdmin ? (archivedTask.ownerId || currentUser?.id || '') : (currentUser?.id || ''),
       startDate: defaultStartDate,
       deadline: defaultDeadline,
       challengeDescription: archivedTask.challengeDescription || '',
@@ -224,12 +237,18 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({ onClose, initi
       for (const item of validDrafts) {
         const targetDeptId = canChangeDepartment ? item.deptId : userAssignedDept.id;
         const itemDept = safeDepts.find((d) => d.id === targetDeptId) || userAssignedDept;
+        const assignedUser = isAdmin
+          ? assignableUsers.find((u) => u.id === item.ownerId) || currentUser
+          : currentUser;
         await createTask({
           title: item.title.trim(),
           description: item.description.trim(),
           objective: item.objective.trim(),
           departmentId: itemDept.id,
           departmentName: itemDept.name,
+          ownerId: assignedUser?.id,
+          ownerName: assignedUser?.name,
+          ownerAvatar: assignedUser?.avatarUrl,
           weekId: activeWeek,
           priority: item.priority,
           startDate: item.startDate,
@@ -572,60 +591,100 @@ export const TaskCreateModal: React.FC<TaskCreateModalProps> = ({ onClose, initi
                           />
                         </div>
 
-                        {/* Department Selection */}
-                        <div>
-                          <div className="flex items-center justify-between mb-1.5">
-                            <label className="block font-bold text-slate-700 dark:text-slate-300">
-                              Department
-                            </label>
-                            {!canChangeDepartment ? (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700">
-                                <Lock className="w-3 h-3 text-slate-400" />
-                                Locked to your department
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#005CBD] dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-900/60">
-                                <Building2 className="w-3 h-3" />
-                                Admin / Business Operations
-                              </span>
-                            )}
-                          </div>
-
-                          {canChangeDepartment ? (
-                            <select
-                              value={item.deptId}
-                              onChange={(e) => updateDraftTask(item.draftId, { deptId: e.target.value })}
-                              className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl text-xs bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-[#005CBD] font-semibold text-slate-800 dark:text-white"
-                            >
-                              {safeDepts.map((d) => {
-                                const displayCode =
-                                  d.name?.trim().toLowerCase() === 'community' ? 'Community' : d.code;
-                                return (
-                                  <option key={d.id} value={d.id}>
-                                    {d.name} ({displayCode})
-                                  </option>
-                                );
-                              })}
-                            </select>
-                          ) : (
-                            <div className="w-full px-3.5 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-100/90 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 text-xs font-semibold flex items-center justify-between cursor-not-allowed">
-                              <div className="flex items-center gap-2">
-                                <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                <span>{itemDept?.name || userAssignedDept.name}</span>
-                                <span className="text-[10px] text-slate-400 font-mono">
-                                  ({itemDept?.code || userAssignedDept.code})
+                        {/* Department & Admin Individual Assignment */}
+                        <div className={isAdmin ? 'grid grid-cols-1 sm:grid-cols-2 gap-3.5' : ''}>
+                          {isAdmin && (
+                            <div>
+                              <div className="flex items-center justify-between mb-1.5">
+                                <label className="block font-bold text-slate-700 dark:text-slate-300">
+                                  Assign To (Individual)
+                                </label>
+                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#005CBD] dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-900/60">
+                                  <UserIcon className="w-3 h-3" />
+                                  Admin
                                 </span>
                               </div>
-                              <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-700 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-600">
-                                Fixed
-                              </span>
+                              <select
+                                value={item.ownerId}
+                                onChange={(e) => {
+                                  const nextOwnerId = e.target.value;
+                                  const nextOwner = assignableUsers.find((u) => u.id === nextOwnerId);
+                                  const ownerPrimaryDept = nextOwner?.departmentIds?.[0];
+                                  const hasValidDept = Boolean(ownerPrimaryDept && safeDepts.some((d) => d.id === ownerPrimaryDept));
+                                  updateDraftTask(item.draftId, {
+                                    ownerId: nextOwnerId,
+                                    ...(hasValidDept && ownerPrimaryDept ? { deptId: ownerPrimaryDept } : {}),
+                                  });
+                                }}
+                                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl text-xs bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-[#005CBD] font-semibold text-slate-800 dark:text-white"
+                              >
+                                {assignableUsers.map((u) => {
+                                  const uDept = safeDepts.find((d) => (u.departmentIds || []).includes(d.id));
+                                  const suffix = u.id === currentUser?.id ? ' (Yourself)' : uDept ? ` — ${uDept.name}` : '';
+                                  return (
+                                    <option key={u.id} value={u.id}>
+                                      {u.name}{suffix}
+                                    </option>
+                                  );
+                                })}
+                              </select>
                             </div>
                           )}
-                          {!canChangeDepartment && (
-                            <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
-                              Only Admin and Business Operations can change departments when creating tasks.
-                            </p>
-                          )}
+
+                          <div>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <label className="block font-bold text-slate-700 dark:text-slate-300">
+                                Department
+                              </label>
+                              {!canChangeDepartment ? (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700">
+                                  <Lock className="w-3 h-3 text-slate-400" />
+                                  Locked to your department
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#005CBD] dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-900/60">
+                                  <Building2 className="w-3 h-3" />
+                                  {isAdmin ? 'Department' : 'Admin / Business Operations'}
+                                </span>
+                              )}
+                            </div>
+
+                            {canChangeDepartment ? (
+                              <select
+                                value={item.deptId}
+                                onChange={(e) => updateDraftTask(item.draftId, { deptId: e.target.value })}
+                                className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-xl text-xs bg-white dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-[#005CBD] font-semibold text-slate-800 dark:text-white"
+                              >
+                                {safeDepts.map((d) => {
+                                  const displayCode =
+                                    d.name?.trim().toLowerCase() === 'community' ? 'Community' : d.code;
+                                  return (
+                                    <option key={d.id} value={d.id}>
+                                      {d.name} ({displayCode})
+                                    </option>
+                                  );
+                                })}
+                              </select>
+                            ) : (
+                              <div className="w-full px-3.5 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-100/90 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 text-xs font-semibold flex items-center justify-between cursor-not-allowed">
+                                <div className="flex items-center gap-2">
+                                  <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                  <span>{itemDept?.name || userAssignedDept.name}</span>
+                                  <span className="text-[10px] text-slate-400 font-mono">
+                                    ({itemDept?.code || userAssignedDept.code})
+                                  </span>
+                                </div>
+                                <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-700 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-600">
+                                  Fixed
+                                </span>
+                              </div>
+                            )}
+                            {!canChangeDepartment && (
+                              <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">
+                                Only Admin and Business Operations can change departments when creating tasks.
+                              </p>
+                            )}
+                          </div>
                         </div>
 
                         {/* Planning Parameters: Priority, Start Date, Deadline Date */}

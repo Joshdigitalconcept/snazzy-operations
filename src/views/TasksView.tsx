@@ -38,6 +38,7 @@ export const TasksView: React.FC<TasksViewProps> = ({ viewModeOverride }) => {
     users,
     setIsCreateTaskOpen,
     setSelectedTaskId,
+    openMemberProfile,
     activeWeek,
     weeks,
     activeView,
@@ -277,7 +278,7 @@ export const TasksView: React.FC<TasksViewProps> = ({ viewModeOverride }) => {
                 id="dept-filter-select"
                 value={deptFilter}
                 onChange={(e) => setDeptFilter(e.target.value)}
-                className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer pr-1"
+                className="bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-100 rounded-lg px-1.5 py-0.5 focus:outline-none cursor-pointer"
               >
                 <option value="all">All Departments</option>
                 {departments.map((d) => (
@@ -298,7 +299,7 @@ export const TasksView: React.FC<TasksViewProps> = ({ viewModeOverride }) => {
                 id="user-filter-select"
                 value={ownerFilter}
                 onChange={(e) => setOwnerFilter(e.target.value)}
-                className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer pr-1"
+                className="bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-100 rounded-lg px-1.5 py-0.5 focus:outline-none cursor-pointer"
               >
                 <option value="all">Everyone's Tasks</option>
                 <option value="my">Assigned to Me ({currentUser?.name})</option>
@@ -321,7 +322,7 @@ export const TasksView: React.FC<TasksViewProps> = ({ viewModeOverride }) => {
                   id="cycle-filter-select"
                   value={pastCycleFilter}
                   onChange={(e) => setPastCycleFilter(e.target.value)}
-                  className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer pr-1"
+                  className="bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-100 rounded-lg px-1.5 py-0.5 focus:outline-none cursor-pointer"
                 >
                   <option value="all">All Past Cycles</option>
                   {pastWeeks.map((w) => (
@@ -483,7 +484,19 @@ export const TasksView: React.FC<TasksViewProps> = ({ viewModeOverride }) => {
                         </div>
                       </td>
                       <td className="p-4 font-semibold text-slate-700 dark:text-slate-300">{task.departmentName}</td>
-                      <td className="p-4 font-semibold text-slate-800 dark:text-slate-200">{task.ownerName}</td>
+                      <td className="p-4">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openMemberProfile(task.ownerId);
+                          }}
+                          className="font-semibold text-slate-800 dark:text-slate-200 hover:text-[#005CBD] dark:hover:text-blue-400 hover:underline transition-colors text-left"
+                          title={`View ${task.ownerName}'s profile`}
+                        >
+                          {task.ownerName}
+                        </button>
+                      </td>
                       <td className="p-4">
                         <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200">
                           {task.priority}

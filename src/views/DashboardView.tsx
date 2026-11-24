@@ -52,6 +52,7 @@ export const DashboardView: React.FC = () => {
     requestRevision,
     activeDashboardTab,
     setActiveDashboardTab,
+    openMemberProfile,
   } = useApp();
 
   const safeTasks = tasks || [];
@@ -179,6 +180,7 @@ export const DashboardView: React.FC = () => {
           approveTask={approveTask}
           requestRevisionTask={requestRevision}
           setSelectedTaskId={setSelectedTaskId}
+          openMemberProfile={openMemberProfile}
           activeWeek={activeWeek}
         />
       )}
@@ -419,6 +421,7 @@ const TeamLeadDashboardView: React.FC<{
   approveTask: (id: string, note?: string) => void;
   requestRevisionTask: (id: string, reason: string) => void;
   setSelectedTaskId: (id: string) => void;
+  openMemberProfile: (id: string) => void;
   activeWeek: string;
 }> = ({
   currentUser,
@@ -430,6 +433,7 @@ const TeamLeadDashboardView: React.FC<{
   approveTask,
   requestRevisionTask,
   setSelectedTaskId,
+  openMemberProfile,
   activeWeek,
 }) => {
   const safeTasks = tasks || [];
@@ -610,16 +614,23 @@ const TeamLeadDashboardView: React.FC<{
 
                 return (
                   <tr key={member.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
-                    <td className="p-3 font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                      <img
-                        src={
-                          member.avatarUrl ||
-                          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
-                        }
-                        alt=""
-                        className="w-6 h-6 rounded-full object-cover"
-                      />
-                      <span>{member.name}</span>
+                    <td className="p-3">
+                      <button
+                        type="button"
+                        onClick={() => openMemberProfile(member.id)}
+                        className="font-bold text-slate-900 dark:text-white hover:text-[#005CBD] dark:hover:text-blue-400 hover:underline flex items-center gap-2 text-left transition-colors"
+                        title={`View ${member.name}'s profile`}
+                      >
+                        <img
+                          src={
+                            member.avatarUrl ||
+                            'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+                          }
+                          alt=""
+                          className="w-6 h-6 rounded-full object-cover shrink-0"
+                        />
+                        <span>{member.name}</span>
+                      </button>
                     </td>
                     <td className="p-3 text-slate-500 dark:text-slate-400 capitalize">{member.role}</td>
                     <td className="p-3 font-bold text-slate-800 dark:text-slate-200">{memberActive.length} tasks</td>

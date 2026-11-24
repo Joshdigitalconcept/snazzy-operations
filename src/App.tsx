@@ -6,6 +6,8 @@ import { TaskModal } from './components/TaskModal';
 import { TaskCreateModal } from './components/TaskCreateModal';
 import { WeeklyReflectionModal } from './components/WeeklyReflectionModal';
 import { UserProfileModal } from './components/UserProfileModal';
+import { MemberProfileModal } from './components/MemberProfileModal';
+import { SiteAnnouncementDialog } from './components/SiteAnnouncementDialog';
 
 import { DashboardView } from './views/DashboardView';
 import { TasksView } from './views/TasksView';
@@ -24,6 +26,14 @@ const MainAppContent: React.FC = () => {
     isAuthenticated,
     isUserProfileOpen,
     setIsUserProfileOpen,
+    viewedUserId,
+    setViewedUserId,
+    activeStartupAnnouncement,
+    startupAnnouncementQueue,
+    unseenAnnouncementsCount,
+    previewAnnouncement,
+    setPreviewAnnouncement,
+    dismissStartupAnnouncement,
     activeView,
     selectedTaskId,
     setSelectedTaskId,
@@ -101,6 +111,27 @@ const MainAppContent: React.FC = () => {
 
       {isReflectionModalOpen && (
         <WeeklyReflectionModal onClose={() => setIsReflectionModalOpen(false)} />
+      )}
+
+      {viewedUserId && (
+        <MemberProfileModal userId={viewedUserId} onClose={() => setViewedUserId(null)} />
+      )}
+
+      {previewAnnouncement ? (
+        <SiteAnnouncementDialog
+          announcement={previewAnnouncement}
+          isPreview
+          onClose={() => setPreviewAnnouncement(null)}
+        />
+      ) : (
+        activeStartupAnnouncement && (
+          <SiteAnnouncementDialog
+            announcement={activeStartupAnnouncement}
+            queuedAnnouncements={startupAnnouncementQueue}
+            remainingCount={unseenAnnouncementsCount}
+            onClose={() => dismissStartupAnnouncement(activeStartupAnnouncement.id)}
+          />
+        )
       )}
     </div>
   );

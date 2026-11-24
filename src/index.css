@@ -33,6 +33,31 @@
     background-color: #020617;
     color: #FFFFFF;
   }
+
+  select {
+    color-scheme: light;
+  }
+
+  html.dark select,
+  .dark select {
+    color-scheme: dark;
+    background-color: #1e293b;
+    color: #f8fafc;
+  }
+
+  select option,
+  select optgroup {
+    background-color: #ffffff;
+    color: #0f172a;
+  }
+
+  html.dark select option,
+  html.dark select optgroup,
+  .dark select option,
+  .dark select optgroup {
+    background-color: #0f172a;
+    color: #f8fafc;
+  }
 }
 
 /* Custom scrollbar styling for dense UI */

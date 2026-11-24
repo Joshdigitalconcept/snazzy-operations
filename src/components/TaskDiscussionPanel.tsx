@@ -28,6 +28,7 @@ export const TaskDiscussionPanel: React.FC<TaskDiscussionPanelProps> = ({ taskId
     addComment,
     editComment,
     deleteComment,
+    openMemberProfile,
   } = useApp();
 
   const comments = getTaskComments(taskId);
@@ -269,14 +270,21 @@ export const TaskDiscussionPanel: React.FC<TaskDiscussionPanelProps> = ({ taskId
               >
                 {/* Avatar for other people */}
                 {!isMe && (
-                  <img
-                    src={
-                      comment.userAvatar ||
-                      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
-                    }
-                    alt={comment.userName}
-                    className="w-6 h-6 rounded-full object-cover shrink-0 ring-1 ring-slate-200 dark:ring-slate-700 mb-0.5"
-                  />
+                  <button
+                    type="button"
+                    onClick={() => openMemberProfile(comment.userId)}
+                    title={`View ${comment.userName}'s profile`}
+                    className="shrink-0 mb-0.5 rounded-full focus:outline-none focus:ring-2 focus:ring-[#005CBD]"
+                  >
+                    <img
+                      src={
+                        comment.userAvatar ||
+                        'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+                      }
+                      alt={comment.userName}
+                      className="w-6 h-6 rounded-full object-cover ring-1 ring-slate-200 dark:ring-slate-700 hover:ring-[#005CBD]"
+                    />
+                  </button>
                 )}
 
                 {/* WhatsApp Chat Bubble */}
@@ -290,7 +298,14 @@ export const TaskDiscussionPanel: React.FC<TaskDiscussionPanelProps> = ({ taskId
                   {/* Sender Name if not me */}
                   {!isMe && (
                     <div className="font-bold text-[11px] text-[#00a884] dark:text-[#25d366] mb-1 flex items-center justify-between gap-2">
-                      <span>{comment.userName}</span>
+                      <button
+                        type="button"
+                        onClick={() => openMemberProfile(comment.userId)}
+                        className="hover:underline text-left"
+                        title={`View ${comment.userName}'s profile`}
+                      >
+                        {comment.userName}
+                      </button>
                     </div>
                   )}
 
